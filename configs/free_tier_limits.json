@@ -1,0 +1,93 @@
+{
+  "_meta": {
+    "as_of": "2026-07-10",
+    "purpose": "Hard free-tier limits the system is bound by. Later rate-limiting and degradation logic MUST read budgets from this file, not hardcode them. Re-verify before deploy day; provider terms change.",
+    "verification": "Values marked source_type=official come from provider docs fetched 2026-07-10; secondary = consistent recent third-party sources where official docs no longer publish numbers (Gemini moved exact quotas into the per-project AI Studio dashboard). Confirm Gemini numbers in AI Studio when the API key is created."
+  },
+  "hosting_render_free": {
+    "provider": "Render (free web service)",
+    "ram_mb": 512,
+    "cpu": 0.1,
+    "spin_down_after_idle_min": 15,
+    "spin_up_seconds": "30-60",
+    "instance_hours_per_month": 750,
+    "on_hours_exhausted": "ALL free services in workspace suspended until next calendar month",
+    "bandwidth_gb_per_month": 100,
+    "persistent_disk": false,
+    "source_type": "official (render.com/docs/free); RAM/CPU/bandwidth secondary",
+    "source": "https://render.com/docs/free"
+  },
+  "postgres_neon_free": {
+    "provider": "Neon (Free plan)",
+    "storage_gb_per_project": 0.5,
+    "compute_cu_hours_per_month": 100,
+    "cu_hours_note": "100 CU-hours ~= 400 hours of the 0.25 CU compute; 24/7 always-on is NOT possible, autosuspend is mandatory",
+    "autosuspend_after_idle_min": 5,
+    "wake_latency": "a few hundred ms",
+    "on_storage_exceeded": "inserts/updates/deletes FAIL until space freed or upgrade; data not deleted",
+    "on_compute_exhausted": "compute SUSPENDED (database unreachable) until next billing period",
+    "direct_connections_max": 104,
+    "pooled_connections_max": 10000,
+    "egress_gb_per_month": 5,
+    "source_type": "official (neon.com/docs/introduction/plans); connection counts secondary",
+    "source": "https://neon.com/docs/introduction/plans"
+  },
+  "redis_upstash_free": {
+    "provider": "Upstash Redis (Free)",
+    "data_size_mb": 256,
+    "commands_per_month": 500000,
+    "commands_per_day_budget": 16129,
+    "bandwidth_gb_per_month": 10,
+    "max_request_size_mb": 10,
+    "max_databases": 1,
+    "on_limit_exceeded": "database rate-limited (throttled), email notification; auto-upgrade to paid only if explicitly enabled",
+    "source_type": "official (upstash.com/docs/redis/overall/pricing)",
+    "source": "https://upstash.com/docs/redis/overall/pricing"
+  },
+  "vector_faiss_in_process": {
+    "provider": "FAISS (in-process library, no hosted service)",
+    "external_limits": "none - bounded only by app instance RAM",
+    "index_memory_at_50k_chunks_384d_mb": 74,
+    "caveat": "Render free disk is EPHEMERAL: index files do not survive restarts and must be fetched from object storage (or rebuilt) at boot",
+    "source_type": "n/a (library)",
+    "source": null
+  },
+  "object_storage_r2_free": {
+    "provider": "Cloudflare R2 (free tier) - index artifact store",
+    "storage_gb": 10,
+    "class_a_writes_per_month": 1000000,
+    "class_b_reads_per_month": 10000000,
+    "egress": "free",
+    "on_limit_exceeded": "billed overage (requires card on file to enable R2 at all)",
+    "no_card_fallback": "Backblaze B2 (10GB free, no card) or Supabase Storage (1GB free)",
+    "source_type": "official (developers.cloudflare.com/r2/pricing)",
+    "source": "https://developers.cloudflare.com/r2/pricing/"
+  },
+  "llm_gemini_free": {
+    "provider": "Google Gemini API (free tier)",
+    "primary_model": "gemini-3-flash",
+    "primary_rpm": 10,
+    "primary_tpm": 250000,
+    "primary_rpd": 1500,
+    "fallback_models": {
+      "gemini-2.5-flash": {"rpm": 10, "tpm": 250000, "rpd": 250},
+      "gemini-2.5-flash-lite": {"rpm": 15, "tpm": 250000, "rpd": 1000}
+    },
+    "quota_scope": "per Google Cloud project (multiple API keys share quota)",
+    "quota_reset": "midnight US Pacific time",
+    "on_quota_exhausted": "HTTP 429, error status RESOURCE_EXHAUSTED, includes retry-after guidance",
+    "source_type": "secondary (Google now shows exact per-project quotas only in AI Studio dashboard; 429/RESOURCE_EXHAUSTED behavior is official). MUST confirm in AI Studio at key creation",
+    "source": "https://ai.google.dev/gemini-api/docs/rate-limits"
+  },
+  "llm_groq_free_fallback": {
+    "provider": "Groq API (free tier) - secondary LLM provider",
+    "models": {
+      "llama-3.1-8b-instant": {"rpm": 30, "tpm": 6000, "rpd": 14400},
+      "llama-3.3-70b-versatile": {"rpm": 30, "tpm": 12000, "rpd": 1000}
+    },
+    "quota_scope": "per organization",
+    "on_quota_exhausted": "HTTP 429 with retry-after header",
+    "source_type": "official model list (console.groq.com/docs/rate-limits) + secondary",
+    "source": "https://console.groq.com/docs/rate-limits"
+  }
+}
