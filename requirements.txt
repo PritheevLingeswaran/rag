@@ -1,0 +1,5 @@
+# Stage 0 is intentionally stdlib-only: the eval harness and the BM25
+# skeleton have zero third-party dependencies, so baseline numbers are
+# reproducible with nothing but Python 3.11.
+# Pinned dependencies (FastAPI, FAISS, sentence-transformers, etc.) are
+# added stage by stage as they are actually used.
