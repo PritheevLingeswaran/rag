@@ -1,0 +1,3 @@
+# Force LF everywhere so the corpus/dataset sha256 recorded in eval results
+# is identical on every platform (autocrlf would silently change the hashes).
+* text=auto eol=lf
