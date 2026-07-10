@@ -1,5 +1,13 @@
-# Stage 0 is intentionally stdlib-only: the eval harness and the BM25
-# skeleton have zero third-party dependencies, so baseline numbers are
-# reproducible with nothing but Python 3.11.
-# Pinned dependencies (FastAPI, FAISS, sentence-transformers, etc.) are
-# added stage by stage as they are actually used.
+# Pinned exact versions for reproducible installs on free-tier hosts.
+# Stage-by-stage additions only; nothing speculative.
+
+fastapi==0.115.6
+uvicorn[standard]==0.30.6
+pydantic==2.9.2
+pydantic-settings==2.5.2
+structlog==24.4.0
+python-dotenv==1.2.1
+
+# -- test/dev only --
+pytest==8.3.3
+httpx==0.27.2

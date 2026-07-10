@@ -43,11 +43,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO_ROOT / "src"))
+sys.path.insert(0, str(REPO_ROOT))
 
-from ragp import __version__ as ragp_version  # noqa: E402
-from ragp.bm25 import tokenize  # noqa: E402
-from ragp.pipeline import PipelineResult, SkeletonPipeline  # noqa: E402
+from app import __version__ as app_version  # noqa: E402
+from app.core.bm25 import tokenize  # noqa: E402
+from app.core.pipeline import PipelineResult, SkeletonPipeline  # noqa: E402
 
 # ---- Harness contract constants (bump HARNESS_VERSION if any change) ----
 HARNESS_VERSION = "1.0"
@@ -219,7 +219,7 @@ def evaluate() -> dict:
     }
     return {
         "harness_version": HARNESS_VERSION,
-        "ragp_version": ragp_version,
+        "app_version": app_version,
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
         "git_commit": git_commit(),
         "random_seed": RANDOM_SEED,
