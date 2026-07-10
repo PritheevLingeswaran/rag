@@ -56,6 +56,45 @@ from day one. Hallucination rate is ~0 by construction for an extractive
 system — that is the honest baseline, and the number becomes informative
 once generation is abstractive.
 
+## Storage layer (Stage 2)
+
+PostgreSQL holds documents, chunks, index-version records, chunk→FAISS-row
+mappings, and query/citation logs (`migrations/0001_init.sql`). Embedding
+vectors live in FAISS files on disk, not in Postgres — free-tier Postgres
+storage is capped and vectors are the bulk of the data; Postgres stores the
+metadata and hashes needed to verify them. Redis provides the response
+cache and atomic (Lua) fixed-window rate limiting; both fail soft/open on
+Redis outage — a cache blip degrades latency, never availability (tradeoff
+documented in `app/storage/redis_store.py`).
+
+### Index versioning & rollback
+
+Every successful ingestion run produces an immutable version directory
+`indexes/{version_id}/` (index.faiss + manifest.json) and an
+`index_versions` row. Nothing is ever mutated in place:
+
+- **Build ≠ activate.** A new index goes live only via an explicit
+  `activate`, a single transactional status flip. A partial unique index in
+  Postgres guarantees at most one `active` version exists.
+- **Writes are atomic.** Indexes are staged in a temp dir, fsynced, then
+  renamed — a version directory either fully exists or doesn't. Disk-full
+  mid-write leaves the active index untouched.
+- **Rollback** (`python -m app.ingest.cli rollback`) transactionally marks
+  the active version `rolled_back` and re-activates the most recent prior
+  `ready` version, whose files are still on disk. `gc` retains the active
+  + last N ready versions and sweeps the rest plus orphaned staging dirs.
+- **Integrity.** index.faiss SHA-256 is recorded in both the manifest and
+  Postgres; loading verifies it and refuses to serve a corrupt file.
+
+### Ingestion failure policy (each behavior integration-tested)
+
+| Failure | Behavior |
+|---|---|
+| Malformed doc | Skipped + recorded in run report; run aborts before any write if >10% malformed (systematic input breakage) |
+| Embedding failure mid-batch | Batch retried 3x with backoff; then the run aborts, version marked `failed`, **no index written** — a partially-embedded index is silent corruption |
+| Disk full / index write error | Staging dir cleaned up, version marked `failed`, active index unaffected |
+| Re-run of identical corpus | Detected via corpus SHA-256 + embedder id; existing version reused, no rebuild |
+
 ## Layout
 
 ```

@@ -38,6 +38,13 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "ragp"
+
+    # Storage endpoints. Optional at Settings level because the bare API
+    # skeleton (/health) must boot without them; any component that needs
+    # one calls require_setting() and fails loudly at the point of use.
+    database_url: str | None = None
+    redis_url: str | None = None
+    index_root: str = "indexes"
     log_level: Literal[
         "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
     ] = "INFO"
@@ -52,3 +59,15 @@ class Settings(BaseSettings):
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     return Settings()
+
+
+def require_setting(value: str | None, env_name: str) -> str:
+    """Fail loudly when an optional-at-boot setting is needed but unset."""
+    from app.errors import ConfigurationError
+
+    if value is None or not value.strip():
+        raise ConfigurationError(
+            f"{env_name} must be set (in the environment or .env) to use "
+            f"this component"
+        )
+    return value
