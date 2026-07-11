@@ -87,6 +87,33 @@ class RedisStore:
         except redis.RedisError as exc:
             logger.warning("cache_delete_failed", key=key, error=str(exc))
 
+    # ---- bounded counters (LLM quota accounting) ----
+
+    _BOUNDED_INCR_LUA = """
+    local current = redis.call('INCR', KEYS[1])
+    if current == 1 then
+        redis.call('EXPIRE', KEYS[1], ARGV[1])
+    end
+    return current
+    """
+
+    def bounded_incr(self, key: str, ttl_s: int) -> int | None:
+        """Atomically increment a counter that expires ttl_s after its
+        first increment. Returns the post-increment value, or None when
+        Redis is unreachable (caller decides the fallback policy)."""
+        try:
+            if not hasattr(self, "_bounded_incr_script"):
+                self._bounded_incr_script = self._client.register_script(
+                    self._BOUNDED_INCR_LUA
+                )
+            value = self._bounded_incr_script(
+                keys=[f"{self.ns}:ctr:{key}"], args=[ttl_s]
+            )
+            return int(value)
+        except redis.RedisError as exc:
+            logger.warning("bounded_incr_failed", key=key, error=str(exc))
+            return None
+
     # ---- rate limiting ----
 
     def check_rate_limit(self, client_id: str, limit: int,

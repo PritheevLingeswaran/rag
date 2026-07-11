@@ -113,6 +113,7 @@ def build_generation_pipeline(
     pipeline = build_hybrid_from_corpus(corpus_path, cache_dir,
                                         **pipeline_kwargs)
     llm = None
+    quota_guard = None
     if settings.gemini_api_key:
         llm = GeminiClient(
             api_key=settings.gemini_api_key,
@@ -120,8 +121,22 @@ def build_generation_pipeline(
             timeout_s=settings.llm_timeout_s,
             max_output_tokens=settings.llm_max_output_tokens,
         )
+        from app.generation.quota import QuotaGuard, load_model_limits
+
+        redis_store = None
+        if settings.redis_url:
+            from app.storage.redis_store import RedisStore
+
+            redis_store = RedisStore(settings.redis_url)
+        quota_guard = QuotaGuard(
+            load_model_limits(settings.llm_model),
+            redis_store=redis_store,
+            safety_margin=settings.quota_safety_margin,
+        )
+        logger.info("quota_guard_armed", **quota_guard.snapshot())
     logger.info("generation_service_built",
                 llm="gemini" if llm else "none (degraded_no_llm path)")
     return GenerationEvalAdapter(
-        GenerationService(pipeline, llm), pipeline.chunk_texts
+        GenerationService(pipeline, llm, quota_guard=quota_guard),
+        pipeline.chunk_texts,
     )

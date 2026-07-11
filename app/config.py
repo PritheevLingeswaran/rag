@@ -66,6 +66,10 @@ class Settings(BaseSettings):
     llm_model: str = "gemini-2.5-flash-lite"
     llm_timeout_s: float = 20.0
     llm_max_output_tokens: int = 1024
+
+    # Fraction of the provider's documented free-tier RPM/RPD we allow
+    # ourselves (Stage 4.5). We hit our own wall before Google's.
+    quota_safety_margin: float = 0.9
     log_level: Literal[
         "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
     ] = "INFO"

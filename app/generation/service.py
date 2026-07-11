@@ -8,7 +8,8 @@ covered by a test in tests/generation/test_service.py):
 | none (happy path)             | ok                          | validated LLM answer + citations |
 | some sentences unsupported    | ok_partial_rejected         | LLM answer minus rejected sentences; rejection counts included |
 | ALL sentences rejected        | degraded_citation_rejected  | extractive answer from top chunks + citations |
-| LLM quota exhausted (429)     | degraded_quota              | extractive answer; retry_after_s surfaced when known |
+| OUR quota budget exhausted (proactive, LLM never called) | degraded_quota_throttled | extractive answer; retry_after_s + throttle reason (rpm/rpd/cooldown) |
+| provider 429 despite budget   | degraded_quota              | extractive answer; retry_after_s surfaced when known; opens proactive cooldown |
 | LLM timeout                   | degraded_timeout            | extractive answer           |
 | LLM 5xx / network (after 1 retry) | degraded_llm_error      | extractive answer           |
 | LLM malformed/empty response  | degraded_llm_malformed      | extractive answer           |
@@ -20,6 +21,18 @@ Degradation is always explicit (status + degraded flag on every result)
 and never an exception to the caller: retrieval-backed extractive answers
 with citations are strictly better than a 500. LLMAuthError is
 deliberately NOT retried and logged at ERROR -- it cannot fix itself.
+
+Log-level contract (operators route on these, Stage 4.5):
+    INFO  llm_quota_throttled_proactive  expected budget management; no
+                                         action needed, capacity working
+                                         as designed
+    WARN  llm_quota_exhausted            provider 429'd us: accounting
+                                         slipped or another consumer
+                                         shares the project quota --
+                                         investigate consumers/margin
+    ERROR llm_server_error_after_retry / llm_malformed_response /
+          llm_auth_failure_check_config  actual API failure -- provider
+                                         incident or our config bug
 
 The extractive fallback is the first two sentences of the top retrieved
 chunk -- the same deterministic path the eval harness has measured since
@@ -88,13 +101,15 @@ class GenerationService:
     def __init__(self, pipeline: HybridPipeline,
                  llm: LLMClient | None,
                  validator: CitationValidator | None = None,
-                 max_context_chunks: int = 5) -> None:
+                 max_context_chunks: int = 5,
+                 quota_guard=None) -> None:
         if max_context_chunks <= 0:
             raise ValueError("max_context_chunks must be positive")
         self.pipeline = pipeline
         self.llm = llm
         self.validator = validator or CitationValidator()
         self.max_context_chunks = max_context_chunks
+        self.quota_guard = quota_guard
 
     # ---- helpers ----
 
@@ -149,12 +164,34 @@ class GenerationService:
             return self._degraded(query, context, rerank_info.status,
                                   "degraded_no_llm")
 
+        if self.quota_guard is not None:
+            decision = self.quota_guard.try_acquire()
+            if not decision.allowed:
+                # Expected budget management, NOT a failure: INFO level.
+                logger.info(
+                    "llm_quota_throttled_proactive",
+                    reason=decision.reason,
+                    retry_after_s=decision.retry_after_s,
+                    remaining_rpd=decision.remaining_rpd,
+                )
+                result = self._degraded(
+                    query, context, rerank_info.status,
+                    "degraded_quota_throttled",
+                    retry_after_s=decision.retry_after_s,
+                )
+                result.extra["throttle_reason"] = decision.reason
+                return result
+
         prompt = self._build_prompt(query, context)
         try:
             llm_resp = self._call_llm_once_retrying_5xx(prompt)
         except LLMQuotaError as exc:
+            # Provider rejected despite proactive accounting: WARNING,
+            # and open a cooldown so we stop asking until it clears.
             logger.warning("llm_quota_exhausted",
                            retry_after_s=exc.retry_after_s)
+            if self.quota_guard is not None:
+                self.quota_guard.record_provider_rejection(exc.retry_after_s)
             return self._degraded(query, context, rerank_info.status,
                                   "degraded_quota",
                                   retry_after_s=exc.retry_after_s)
