@@ -1,0 +1,27 @@
+# Render blueprint (Stage 8). Free-tier web service, Docker runtime.
+# Secrets are sync:false -- set in the Render dashboard's secret manager,
+# NEVER in this file or the image.
+services:
+  - type: web
+    name: ragp
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: ENVIRONMENT
+        value: production          # app refuses to boot keyless in prod
+      - key: SERVE_PIPELINE
+        value: "true"
+      - key: API_KEYS
+        sync: false                # comma-separated client keys
+      - key: REDIS_URL
+        sync: false                # Upstash (rediss://...)
+      - key: DATABASE_URL
+        sync: false                # Neon pooled connection string
+      - key: GEMINI_API_KEY
+        sync: false                # optional: absent => degraded_no_llm
+      - key: ALERT_WEBHOOK_URL
+        sync: false                # 80% quota alerts (e.g. ntfy.sh topic)
+      - key: CORS_ORIGINS
+        sync: false                # exact origins; '*' refuses to boot
