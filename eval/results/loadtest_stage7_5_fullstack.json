@@ -1,0 +1,90 @@
+{
+  "timestamp_utc": "2026-07-11T04:59:18.978115+00:00",
+  "command": "scripts\\load_test_fullstack.py --chunks 50000 --requests 200 --concurrency 1,4,8 --json eval\\results\\loadtest_stage7_5_fullstack.json",
+  "chunks": 50000,
+  "pipeline_config": "production defaults (rerank_depth=10, budget=700ms, admission 2+4)",
+  "llm": "zero-latency scripted grounded (provider latency excluded, stated)",
+  "levels": [
+    {
+      "concurrency": 1,
+      "sent": 200,
+      "ok": 200,
+      "shed_503": 0,
+      "p50_ms": 487.8,
+      "p95_ms": 786.3,
+      "p99_ms": 876.6,
+      "mean_ms": 570.6,
+      "throughput_ok_rps": 1.75,
+      "statuses": {
+        "ok": 200
+      },
+      "rerank_statuses": {
+        "partial": 125,
+        "full": 75
+      },
+      "cache_hits": 0,
+      "stage_seconds": {
+        "http_total": 113.36,
+        "retrieval_embed": 8.88,
+        "retrieval_bm25": 0.43,
+        "retrieval_dense": 1.04,
+        "retrieval_rerank": 99.92,
+        "retrieval_total": 110.3
+      }
+    },
+    {
+      "concurrency": 4,
+      "sent": 200,
+      "ok": 200,
+      "shed_503": 0,
+      "p50_ms": 942.6,
+      "p95_ms": 1164.0,
+      "p99_ms": 1274.5,
+      "mean_ms": 950.5,
+      "throughput_ok_rps": 4.18,
+      "statuses": {
+        "ok": 200
+      },
+      "rerank_statuses": {
+        "partial": 194,
+        "full": 6
+      },
+      "cache_hits": 0,
+      "stage_seconds": {
+        "http_total": 189.03,
+        "retrieval_embed": 10.38,
+        "retrieval_bm25": 0.78,
+        "retrieval_dense": 1.31,
+        "retrieval_rerank": 82.26,
+        "retrieval_total": 94.77
+      }
+    },
+    {
+      "concurrency": 8,
+      "sent": 200,
+      "ok": 16,
+      "shed_503": 184,
+      "p50_ms": 1559.5,
+      "p95_ms": 1811.9,
+      "p99_ms": 1826.3,
+      "mean_ms": 1407.4,
+      "throughput_ok_rps": 3.71,
+      "statuses": {
+        "ok": 16
+      },
+      "rerank_statuses": {
+        "partial": 15,
+        "full": 1
+      },
+      "cache_hits": 0,
+      "stage_seconds": {
+        "http_total": 22.34,
+        "retrieval_embed": 0.85,
+        "retrieval_bm25": 0.16,
+        "retrieval_dense": 0.12,
+        "retrieval_rerank": 6.93,
+        "retrieval_total": 8.06
+      }
+    }
+  ]
+}
