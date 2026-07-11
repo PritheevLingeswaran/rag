@@ -91,6 +91,14 @@ class Settings(BaseSettings):
     # capacity). Requires Redis; bypassed (and counted) without it.
     cache_ttl_s: int = 3600
 
+    # Quota circuit breakers + alerting (Stage 7.7). Budgets derive from
+    # configs/free_tier_limits.json: 500K Upstash commands/month ~= 16129
+    # per UTC day; Neon storage 0.5GB. Webhook: any JSON-POST receiver
+    # (ntfy.sh / Discord / Slack / healthchecks -- all free).
+    alert_webhook_url: str | None = None
+    redis_daily_command_budget: int = 16_129
+    postgres_storage_limit_mb: int = 500
+
     @property
     def cors_origin_list(self) -> list[str]:
         if not self.cors_origins:

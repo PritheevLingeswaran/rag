@@ -63,7 +63,17 @@ def main() -> int:
             print(f"applied: {applied or 'nothing pending'}")
 
         elif args.command == "ingest":
-            pipeline = IngestionPipeline(conn, HashingEmbedder(), store)
+            from app.reliability import AlertManager, PostgresStorageBreaker
+
+            breaker = PostgresStorageBreaker(
+                size_fn=lambda: conn.execute(
+                    "SELECT pg_database_size(current_database())"
+                ).fetchone()[0],
+                limit_bytes=settings.postgres_storage_limit_mb * 1024 * 1024,
+                alerts=AlertManager(settings.alert_webhook_url),
+            )
+            pipeline = IngestionPipeline(conn, HashingEmbedder(), store,
+                                         storage_breaker=breaker)
             report = pipeline.run(args.corpus)
             print(json.dumps(dataclasses.asdict(report), indent=2))
             if report.status in ("failed", "aborted_input"):

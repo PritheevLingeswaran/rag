@@ -46,16 +46,28 @@ async def lifespan(app: FastAPI):
         max_queue_depth=settings.admission_max_queue_depth,
     )
 
+    from app.reliability import AlertManager, ResourceBudget
+
+    app.state.alerts = AlertManager(settings.alert_webhook_url)
+
     app.state.redis_store = None
     if settings.redis_url:
         from app.storage.redis_store import RedisStore
 
-        app.state.redis_store = RedisStore(settings.redis_url)
+        app.state.redis_store = RedisStore(
+            settings.redis_url,
+            command_budget=ResourceBudget(
+                "upstash_commands_daily",
+                settings.redis_daily_command_budget,
+                alerts=app.state.alerts,
+            ),
+        )
 
     if settings.serve_pipeline and not hasattr(app.state, "service"):
         from app.core.bootstrap import build_generation_pipeline
 
-        adapter = build_generation_pipeline(Path(settings.corpus_path))
+        adapter = build_generation_pipeline(Path(settings.corpus_path),
+                                            alerts=app.state.alerts)
         app.state.service = adapter._service
         # Warmup: exercises the full path once so model sessions are hot
         # and the rerank-budget EWMA is seeded before the first user

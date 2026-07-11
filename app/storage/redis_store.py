@@ -51,8 +51,16 @@ class RateLimitDecision:
 
 
 class RedisStore:
-    def __init__(self, redis_url: str, namespace: str = "ragp") -> None:
+    def __init__(self, redis_url: str, namespace: str = "ragp",
+                 command_budget=None) -> None:
+        """command_budget: optional app.reliability.ResourceBudget
+        metering the Upstash daily command allowance (Stage 7.7). When
+        the budget opens, every operation BYPASSES Redis instead of
+        spending commands we no longer have: cache degrades to misses,
+        rate limiting fails open, counters return None (callers fall
+        back to local accounting) -- all logged, never raised."""
         self.ns = namespace
+        self.command_budget = command_budget
         self._client = redis.Redis.from_url(
             redis_url, decode_responses=False, socket_timeout=2.0,
             socket_connect_timeout=2.0,
@@ -65,7 +73,21 @@ class RedisStore:
             self._BOUNDED_INCR_LUA
         )
 
+    def _spend(self, commands: int = 1) -> bool:
+        """Meter the command budget; False => bypass Redis entirely."""
+        if self.command_budget is None:
+            return True
+        decision = self.command_budget.record_and_check(commands)
+        if not decision.allowed:
+            logger.warning(
+                "redis_command_budget_open_bypassing",
+                used=decision.used, enforced=decision.enforced,
+            )
+        return decision.allowed
+
     def ping(self) -> bool:
+        if not self._spend():
+            return False
         try:
             return bool(self._client.ping())
         except redis.RedisError as exc:
@@ -75,6 +97,8 @@ class RedisStore:
     # ---- cache ----
 
     def cache_get(self, key: str) -> bytes | None:
+        if not self._spend():
+            return None  # budget open: cache degrades to misses
         try:
             return self._client.get(f"{self.ns}:cache:{key}")
         except redis.RedisError as exc:
@@ -82,12 +106,16 @@ class RedisStore:
             return None
 
     def cache_set(self, key: str, value: bytes, ttl_s: int) -> None:
+        if not self._spend():
+            return
         try:
             self._client.set(f"{self.ns}:cache:{key}", value, ex=ttl_s)
         except redis.RedisError as exc:
             logger.warning("cache_set_failed", key=key, error=str(exc))
 
     def cache_delete(self, key: str) -> None:
+        if not self._spend():
+            return
         try:
             self._client.delete(f"{self.ns}:cache:{key}")
         except redis.RedisError as exc:
@@ -106,7 +134,10 @@ class RedisStore:
     def bounded_incr(self, key: str, ttl_s: int) -> int | None:
         """Atomically increment a counter that expires ttl_s after its
         first increment. Returns the post-increment value, or None when
-        Redis is unreachable (caller decides the fallback policy)."""
+        Redis is unreachable OR the command budget is open (caller
+        decides the fallback policy)."""
+        if not self._spend():
+            return None
         try:
             value = self._bounded_incr_script(
                 keys=[f"{self.ns}:ctr:{key}"], args=[ttl_s]
@@ -120,7 +151,11 @@ class RedisStore:
 
     def check_rate_limit(self, client_id: str, limit: int,
                          window_s: int) -> RateLimitDecision:
-        """Atomic fixed-window rate limit check. Fail-open on Redis errors."""
+        """Atomic fixed-window rate limit check. Fail-open on Redis
+        errors AND when the command budget is open (documented Stage 2
+        tradeoff: a budget/outage blip must not 429 everyone)."""
+        if not self._spend():
+            return RateLimitDecision(allowed=True, remaining=0, retry_after_s=0)
         key = f"{self.ns}:rl:{client_id}:{window_s}"
         try:
             allowed, remaining, ttl = self._rate_limit(

@@ -98,6 +98,7 @@ class GenerationEvalAdapter:
 def build_generation_pipeline(
     corpus_path: Path,
     cache_dir: str | None = None,
+    alerts=None,
     **pipeline_kwargs,
 ) -> GenerationEvalAdapter:
     """Full serving path for eval: hybrid retrieval + GenerationService.
@@ -132,6 +133,7 @@ def build_generation_pipeline(
             load_model_limits(settings.llm_model),
             redis_store=redis_store,
             safety_margin=settings.quota_safety_margin,
+            alerts=alerts,
         )
         logger.info("quota_guard_armed", **quota_guard.snapshot())
     logger.info("generation_service_built",

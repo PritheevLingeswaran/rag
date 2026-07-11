@@ -125,7 +125,11 @@ class QuotaGuard:
     def __init__(self, limits: ModelLimits,
                  redis_store=None,
                  safety_margin: float = DEFAULT_SAFETY_MARGIN,
-                 now_fn: Callable[[], float] = time.time) -> None:
+                 now_fn: Callable[[], float] = time.time,
+                 alerts=None,
+                 alert_pct: float = 0.8) -> None:
+        self.alerts = alerts
+        self.alert_pct = alert_pct
         if not 0.0 < safety_margin <= 1.0:
             raise ValueError("safety_margin must be in (0, 1]")
         self.limits = limits
@@ -174,6 +178,15 @@ class QuotaGuard:
         # RPM's counter; that costs at most one RPM slot in that minute,
         # accepted for the simplicity of two plain counters.
         rpd_used = self._count(rpd_key, int(seconds_to_pacific_midnight(now)) + 60)
+        # 80% daily alert (Stage 7.7): one alert per resource per day,
+        # dedupe inside AlertManager.
+        if self.alerts is not None and rpd_used >= self.alert_pct * self.enforced_rpd:
+            self.alerts.fire(
+                f"gemini_rpd:{self.limits.model}",
+                rpd_used / self.enforced_rpd,
+                f"LLM daily quota at {rpd_used}/{self.enforced_rpd} enforced "
+                f"(provider hard limit {self.limits.rpd}/day)",
+            )
         if rpd_used > self.enforced_rpd:
             return QuotaDecision(
                 allowed=False, reason=REASON_RPD,

@@ -106,10 +106,16 @@ def _chunk_doc(doc: dict) -> list[tuple[str, int, str, str]]:
 
 class IngestionPipeline:
     def __init__(self, conn: psycopg.Connection, embedder: Embedder,
-                 faiss_store: FaissStore) -> None:
+                 faiss_store: FaissStore, storage_breaker=None) -> None:
+        """storage_breaker: optional app.reliability.PostgresStorageBreaker.
+        When open (DB size >= enforced budget), ingestion refuses BEFORE
+        writing anything -- Neon fails INSERT/UPDATE/DELETE past its hard
+        limit, so tripping early keeps us the ones choosing what breaks
+        (a new corpus can wait; a corrupted half-write cannot)."""
         self.conn = conn
         self.embedder = embedder
         self.store = faiss_store
+        self.storage_breaker = storage_breaker
         self.docs = DocumentRepo(conn)
         self.versions = IndexVersionRepo(conn)
 
@@ -192,6 +198,21 @@ class IngestionPipeline:
 
     def run(self, corpus_path: Path) -> RunReport:
         report = RunReport(version_id=None, status="failed")
+
+        if self.storage_breaker is not None:
+            decision = self.storage_breaker.check_writable()
+            if not decision.allowed:
+                report.status = "aborted_storage_budget"
+                report.error = (
+                    f"postgres storage breaker OPEN: {decision.used} bytes "
+                    f">= enforced budget {decision.enforced} (hard limit "
+                    f"{decision.hard_limit}); refusing to write. Free space "
+                    f"or raise the plan before ingesting."
+                )
+                logger.error("ingestion_refused_storage_budget",
+                             used=decision.used, enforced=decision.enforced)
+                return report
+
         try:
             docs = self._load_documents(corpus_path, report)
         except MalformedDocumentError as exc:
@@ -200,7 +221,16 @@ class IngestionPipeline:
             logger.error("ingestion_aborted_bad_input", error=str(exc))
             return report
 
-        self._upsert_documents(docs, report)
+        try:
+            self._upsert_documents(docs, report)
+        except psycopg.Error as exc:
+            # Past the provider hard limit (or any DB write failure):
+            # typed, clean abort -- never a stack trace to the operator,
+            # never a partial index (nothing index-side has happened yet).
+            report.status = "failed_storage"
+            report.error = f"database write failed: {exc}"
+            logger.error("ingestion_db_write_failed", error=str(exc))
+            return report
 
         chunk_rows = self.docs.all_chunks_ordered()
         report.chunk_count = len(chunk_rows)
