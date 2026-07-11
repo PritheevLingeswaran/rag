@@ -76,8 +76,21 @@ class Settings(BaseSettings):
     # anonymous access is allowed and logged.
     api_keys: str | None = None
     rate_limit_per_minute: int = 30
+    daily_quota_per_key: int = 500   # cost guardrail: requests/key/UTC-day
     corpus_path: str = "data/corpus_v1.jsonl"
     serve_pipeline: bool = True   # tests boot the app without models
+
+    # CORS: comma-separated exact origins. Unset => NO CORS headers are
+    # emitted at all (deny-by-default); "*" is deliberately rejected in
+    # production by create_app.
+    cors_origins: str | None = None
+    max_request_bytes: int = 16_384
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        if not self.cors_origins:
+            return []
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
     # Admission control (bounded queue in front of the pipeline).
     # Values measured, not estimated (docs/stage5_admission.md):

@@ -139,16 +139,21 @@ class GenerationService:
             retry_after_s=retry_after_s,
         )
 
-    def _call_llm_once_retrying_5xx(self, prompt: str):
+    def _call_llm_once_retrying_5xx(self, prompt: str,
+                                    max_output_tokens: int | None = None):
+        kwargs = {}
+        if max_output_tokens is not None:
+            kwargs["max_output_tokens"] = max_output_tokens
         try:
-            return self.llm.generate(prompt)
+            return self.llm.generate(prompt, **kwargs)
         except LLMServerError as exc:
             logger.warning("llm_server_error_retrying", error=str(exc))
-            return self.llm.generate(prompt)  # second failure propagates
+            return self.llm.generate(prompt, **kwargs)  # second failure propagates
 
     # ---- entrypoint ----
 
-    def answer(self, query: str) -> GenerationResult:
+    def answer(self, query: str,
+               max_output_tokens: int | None = None) -> GenerationResult:
         chunks, rerank_info = self.pipeline.retrieve(query)
         if not chunks:
             return GenerationResult(
@@ -184,7 +189,9 @@ class GenerationService:
 
         prompt = self._build_prompt(query, context)
         try:
-            llm_resp = self._call_llm_once_retrying_5xx(prompt)
+            llm_resp = self._call_llm_once_retrying_5xx(
+                prompt, max_output_tokens
+            )
         except LLMQuotaError as exc:
             # Provider rejected despite proactive accounting: WARNING,
             # and open a cooldown so we stop asking until it clears.

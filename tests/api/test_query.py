@@ -1,4 +1,4 @@
-"""/query endpoint tests: auth, rate limiting, admission control 503,
+﻿"""/query endpoint tests: auth, rate limiting, admission control 503,
 and response shape -- with a stub service, no models."""
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ def client_factory(monkeypatch):
 
 def test_query_happy_path_carries_degradation_fields(client_factory):
     with client_factory() as client:
-        resp = client.post("/query", json={"query": "what is a token bucket?"})
+        resp = client.post("/v1/query", json={"query": "what is a token bucket?"})
     assert resp.status_code == 200
     body = resp.json()
     assert body["answer"] == "stub answer."
@@ -65,30 +65,33 @@ def test_query_happy_path_carries_degradation_fields(client_factory):
 
 def test_missing_api_key_is_401_when_keys_configured(client_factory):
     with client_factory(env={"API_KEYS": "s3cret-key-1"}) as client:
-        resp = client.post("/query", json={"query": "q"})
+        resp = client.post("/v1/query", json={"query": "q"})
         assert resp.status_code == 401
-        resp = client.post("/query", json={"query": "q"},
+        resp = client.post("/v1/query", json={"query": "q"},
                            headers={"x-api-key": "wrong"})
         assert resp.status_code == 401
-        resp = client.post("/query", json={"query": "q"},
+        resp = client.post("/v1/query", json={"query": "q"},
                            headers={"x-api-key": "s3cret-key-1"})
         assert resp.status_code == 200
 
 
 def test_empty_query_rejected_422(client_factory):
     with client_factory() as client:
-        assert client.post("/query", json={"query": ""}).status_code == 422
+        assert client.post("/v1/query", json={"query": ""}).status_code == 422
 
 
 def test_rate_limit_429_with_retry_after(client_factory):
     class DenyingLimiter:
+        def bounded_incr(self, key, ttl_s):
+            return 1  # daily quota fine; per-minute limit is what denies
+
         def check_rate_limit(self, client_id, limit, window_s):
             return RateLimitDecision(allowed=False, remaining=0,
                                      retry_after_s=17)
 
     with client_factory() as client:
         client.app.state.redis_store = DenyingLimiter()
-        resp = client.post("/query", json={"query": "q"})
+        resp = client.post("/v1/query", json={"query": "q"})
     assert resp.status_code == 429
     assert resp.headers["retry-after"] == "17"
 
@@ -103,16 +106,16 @@ def test_queue_full_returns_503_with_retry_after(client_factory):
     with client_factory(service, env) as client:
         with ThreadPoolExecutor(max_workers=2) as pool:
             fut_a = pool.submit(
-                client.post, "/query", json={"query": "A"}
+                client.post, "/v1/query", json={"query": "A"}
             )
             # wait until A is executing and B is queued
             deadline = time.time() + 5
             fut_b = None
             while time.time() < deadline:
-                snap = client.get("/admin/admission").json()
+                snap = client.get("/v1/admin/admission").json()
                 if snap["in_flight"] == 1 and fut_b is None:
                     fut_b = pool.submit(
-                        client.post, "/query", json={"query": "B"}
+                        client.post, "/v1/query", json={"query": "B"}
                     )
                 if snap["in_flight"] == 1 and snap["waiting"] == 1:
                     break
@@ -120,7 +123,7 @@ def test_queue_full_returns_503_with_retry_after(client_factory):
             else:
                 pytest.fail("saturation never reached")
 
-            resp_c = client.post("/query", json={"query": "C"})
+            resp_c = client.post("/v1/query", json={"query": "C"})
             assert resp_c.status_code == 503
             assert "retry-after" in resp_c.headers
             assert int(resp_c.headers["retry-after"]) >= 1
@@ -130,7 +133,8 @@ def test_queue_full_returns_503_with_retry_after(client_factory):
             assert fut_a.result().status_code == 200
             assert fut_b.result().status_code == 200
 
-        snap = client.get("/admin/admission").json()
+        snap = client.get("/v1/admin/admission").json()
         assert snap["rejected_total"] == 1
         assert snap["admitted_total"] >= 2
     assert service.calls == 2   # C never reached the pipeline
+

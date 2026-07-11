@@ -1,105 +1,130 @@
-"""POST /query: the serving endpoint.
+"""/v1/query: the serving endpoint (versioned, OpenAPI-documented).
 
 Request admission order (each layer rejects before the next spends work):
-  1. API-key auth        -> 401 (constant-time compare; anonymous allowed
-                                 only outside production, and logged)
-  2. Per-client rate limit -> 429 + Retry-After (Redis fixed-window,
-                                 fail-open on Redis outage per Stage 2)
-  3. Admission control   -> 503 + Retry-After when the bounded queue is
-                                 full (see app/api/admission.py)
-  4. Pipeline execution in a worker thread (the pipeline is sync and
-     CPU-bound; the event loop stays free to answer health checks and
-     reject overload while requests run)
+  0. Size limit / request-id middleware        (app/api/middleware.py)
+  1. API-key auth                              -> 401
+  2. Per-key daily quota (cost guardrail)      -> 429 + Retry-After
+  3. Per-key per-minute rate limit             -> 429 + Retry-After
+  4. Admission control (bounded queue)         -> 503 + Retry-After
+  5. Pipeline execution in a worker thread
+
+Request/response schemas are strict: unknown fields are rejected
+(extra='forbid'), sizes are bounded, and max_tokens is capped by the
+server-side ceiling regardless of what the client asks for.
 
 The response always carries the explicit degradation fields
 (status / degraded / rerank_status) -- no silent downgrade anywhere.
+Internal errors never reach the client: see the handlers in app/main.py.
 """
 
 from __future__ import annotations
 
-import hmac
-
 import anyio
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.admission import QueueFullError
+from app.api.deps import get_client_id
 from app.config import Settings, get_settings
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
 
-router = APIRouter()
+router = APIRouter(prefix="/v1", tags=["query"])
+
+SECONDS_PER_DAY = 86_400
 
 
 class QueryRequest(BaseModel):
-    query: str = Field(min_length=1, max_length=2000)
+    model_config = ConfigDict(extra="forbid")
+
+    query: str = Field(
+        min_length=1, max_length=2000,
+        description="The question to answer from the indexed corpus.",
+    )
+    max_tokens: int | None = Field(
+        default=None, ge=16, le=1024,
+        description="Optional cap on generated tokens; server clamps to "
+                    "its own ceiling.",
+    )
 
 
 class QueryResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     query: str
     answer: str
-    status: str
+    status: str = Field(description="ok | ok_partial_rejected | "
+                                    "ok_no_answer | degraded_* | no_results")
     degraded: bool
     rerank_status: str
     citations: list[str]
     retrieved_chunk_ids: list[str]
     retry_after_s: float | None = None
+    request_id: str | None = None
 
 
-def _authenticate(request: Request, settings: Settings) -> str | None:
-    """Returns client id, or None => the caller gets a 401."""
-    keys = settings.api_key_list
-    provided = request.headers.get("x-api-key", "")
-    if keys:
-        for key in keys:
-            if hmac.compare_digest(provided, key):
-                # client identity = stable non-reversible tag of the key
-                return f"key:{key[:4]}...{len(key)}"
-        return None
-    if settings.is_production:
-        # create_app refuses to boot like this; belt and suspenders.
-        return None
-    client_host = request.client.host if request.client else "unknown"
-    logger.info("anonymous_request_dev_mode", client=client_host)
-    return f"anon:{client_host}"
+def _rate_limited(retry_after_s: int, scope: str) -> JSONResponse:
+    return JSONResponse(
+        status_code=429,
+        content={"error": f"{scope} exceeded",
+                 "retry_after_s": retry_after_s},
+        headers={"Retry-After": str(retry_after_s)},
+    )
 
 
-@router.post("/query")
+@router.post(
+    "/query",
+    response_model=QueryResponse,
+    responses={
+        401: {"description": "missing or invalid API key"},
+        413: {"description": "request body too large"},
+        422: {"description": "validation error"},
+        429: {"description": "rate limit or daily quota exceeded"},
+        503: {"description": "server at capacity; retry later"},
+    },
+)
 async def query(
     body: QueryRequest,
     request: Request,
     settings: Settings = Depends(get_settings),
+    client_id: str = Depends(get_client_id),
 ):
-    client_id = _authenticate(request, settings)
-    if client_id is None:
-        return JSONResponse(
-            status_code=401,
-            content={"error": "missing or invalid API key"},
-        )
-
     redis_store = getattr(request.app.state, "redis_store", None)
     if redis_store is not None:
+        # daily per-key quota first (the scarcer resource), then RPM
+        import time as _time
+
+        day_used = await anyio.to_thread.run_sync(
+            redis_store.bounded_incr,
+            f"apiq:{client_id}:{_time.strftime('%Y%m%d', _time.gmtime())}",
+            SECONDS_PER_DAY + 3600,
+        )
+        if day_used is not None and day_used > settings.daily_quota_per_key:
+            seconds_to_utc_midnight = SECONDS_PER_DAY - int(
+                _time.time() % SECONDS_PER_DAY
+            )
+            return _rate_limited(seconds_to_utc_midnight, "daily quota")
+
         decision = await anyio.to_thread.run_sync(
             redis_store.check_rate_limit, client_id,
             settings.rate_limit_per_minute, 60,
         )
         if not decision.allowed:
-            return JSONResponse(
-                status_code=429,
-                content={"error": "rate limit exceeded",
-                         "retry_after_s": decision.retry_after_s},
-                headers={"Retry-After": str(decision.retry_after_s)},
-            )
+            return _rate_limited(decision.retry_after_s, "rate limit")
 
     admission = request.app.state.admission
     service = request.app.state.service
+    import functools
+
+    call = functools.partial(service.answer, body.query)
+    if body.max_tokens is not None:
+        call = functools.partial(service.answer, body.query,
+                                 max_output_tokens=body.max_tokens)
     try:
         async with admission.admit():
-            result = await anyio.to_thread.run_sync(
-                service.answer, body.query
-            )
+            result = await anyio.to_thread.run_sync(call)
     except QueueFullError as exc:
         return JSONResponse(
             status_code=503,
@@ -119,10 +144,12 @@ async def query(
         citations=result.citations,
         retrieved_chunk_ids=result.retrieved_chunk_ids,
         retry_after_s=result.retry_after_s,
+        request_id=getattr(request.state, "request_id", None),
     )
 
 
-@router.get("/admin/admission")
+@router.get("/admin/admission", include_in_schema=False,
+            dependencies=[Depends(get_client_id)])
 def admission_stats(request: Request) -> dict:
-    """Introspection for operators and the load-test harness."""
+    """Operator introspection; authenticated, hidden from public docs."""
     return request.app.state.admission.snapshot()

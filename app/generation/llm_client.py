@@ -62,7 +62,13 @@ class GeminiClient:
             headers={"x-goog-api-key": api_key},
         )
 
-    def generate(self, prompt: str) -> LLMResponse:
+    def generate(self, prompt: str,
+                 max_output_tokens: int | None = None) -> LLMResponse:
+        # Per-request cap can only LOWER the configured ceiling, never
+        # raise it (cost guardrail).
+        cap = self._max_output_tokens
+        if max_output_tokens is not None:
+            cap = min(cap, max_output_tokens)
         try:
             resp = self._client.post(
                 f"/models/{self._model}:generateContent",
@@ -70,7 +76,7 @@ class GeminiClient:
                     "contents": [{"parts": [{"text": prompt}]}],
                     "generationConfig": {
                         "temperature": 0.0,
-                        "maxOutputTokens": self._max_output_tokens,
+                        "maxOutputTokens": cap,
                     },
                 },
             )

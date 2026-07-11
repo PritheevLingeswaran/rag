@@ -3,6 +3,12 @@
 Run with: uvicorn app.main:app
 (single worker by design: the 512MB cap cannot hold two model copies,
 and admission control state is per-process -- see app/api/admission.py)
+
+Error policy: NO internal detail ever reaches a client. Unhandled
+exceptions are logged with full traceback + request_id server-side; the
+client receives {"error": "internal server error", "request_id": ...}
+and nothing else. Validation errors (422) expose only field locations
+and messages, which describe the CLIENT's input, not our internals.
 """
 
 from __future__ import annotations
@@ -10,11 +16,13 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
 from app import __version__
 from app.api.admission import AdmissionController
 from app.api.health import router as health_router
+from app.api.middleware import RequestIDMiddleware, RequestSizeLimitMiddleware
 from app.api.query import router as query_router
 from app.config import get_settings
 from app.errors import ConfigurationError
@@ -63,6 +71,7 @@ async def lifespan(app: FastAPI):
         version=__version__,
         admission=app.state.admission.snapshot(),
         rate_limiting="redis" if app.state.redis_store else "disabled (no REDIS_URL)",
+        cors_origins=settings.cors_origin_list or "none (cross-origin denied)",
     )
     yield
     logger.info("app_shutdown")
@@ -74,7 +83,51 @@ def create_app() -> FastAPI:
         title=settings.app_name,
         version=__version__,
         lifespan=lifespan,
+        docs_url="/docs",
+        openapi_url="/openapi.json",
     )
+
+    # Middleware (outermost first): request-id wraps everything so even
+    # size-limit rejections carry an id; size limit runs before routing.
+    app.add_middleware(RequestSizeLimitMiddleware,
+                       max_bytes=settings.max_request_bytes)
+    app.add_middleware(RequestIDMiddleware)
+
+    # CORS: deny-by-default. Middleware is added only when origins are
+    # explicitly configured; a wildcard in production is a config error.
+    origins = settings.cors_origin_list
+    if origins:
+        if settings.is_production and "*" in origins:
+            raise ConfigurationError(
+                "CORS_ORIGINS='*' is not allowed in production"
+            )
+        from fastapi.middleware.cors import CORSMiddleware
+
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=origins,
+            allow_methods=["POST", "GET"],
+            allow_headers=["content-type", "x-api-key"],
+            allow_credentials=False,
+            max_age=600,
+        )
+
+    @app.exception_handler(Exception)
+    async def unhandled_exception_handler(request: Request, exc: Exception):
+        request_id = getattr(request.state, "request_id", None)
+        get_logger(__name__).error(
+            "unhandled_exception",
+            request_id=request_id,
+            path=request.url.path,
+            exc_info=exc,
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"error": "internal server error",
+                     "request_id": request_id},
+            headers={"X-Request-ID": request_id or ""},
+        )
+
     app.include_router(health_router)
     app.include_router(query_router)
     return app

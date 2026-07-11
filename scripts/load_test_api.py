@@ -1,4 +1,4 @@
-"""HTTP load test against the running API, through admission control.
+﻿"""HTTP load test against the running API, through admission control.
 
 Purpose: determine the REAL concurrency ceiling empirically -- the
 offered-concurrency level at which the bounded queue starts shedding
@@ -52,7 +52,7 @@ async def worker(client: httpx.AsyncClient, url: str, n: int,
     for i in range(n):
         q = QUERIES[(offset + i) % len(QUERIES)]
         t0 = time.perf_counter()
-        resp = await client.post(f"{url}/query", json={"query": q})
+        resp = await client.post(f"{url}/v1/query", json={"query": q})
         elapsed = (time.perf_counter() - t0) * 1000.0
         out.append((resp.status_code, elapsed,
                     resp.headers.get("retry-after")))
@@ -98,7 +98,7 @@ async def main_async(args) -> dict:
         health = await client.get(f"{args.url}/health")
         health.raise_for_status()
         admission_before = (
-            await client.get(f"{args.url}/admin/admission")
+            await client.get(f"{args.url}/v1/admin/admission")
         ).json()
 
     print(f"admission config: {admission_before['max_concurrency']} "
@@ -119,7 +119,7 @@ async def main_async(args) -> dict:
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         admission_after = (
-            await client.get(f"{args.url}/admin/admission")
+            await client.get(f"{args.url}/v1/admin/admission")
         ).json()
     return {
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
@@ -151,3 +151,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
