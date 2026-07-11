@@ -114,6 +114,9 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception):
+        from app.observability import ERRORS
+
+        ERRORS.labels(type="unhandled").inc()
         request_id = getattr(request.state, "request_id", None)
         get_logger(__name__).error(
             "unhandled_exception",
@@ -127,6 +130,34 @@ def create_app() -> FastAPI:
                      "request_id": request_id},
             headers={"X-Request-ID": request_id or ""},
         )
+
+    @app.middleware("http")
+    async def http_metrics_middleware(request: Request, call_next):
+        import time as _time
+
+        from app.observability import HTTP_REQUEST_DURATION
+
+        t0 = _time.perf_counter()
+        response = await call_next(request)
+        # Label with the ROUTE TEMPLATE, not the raw URL, to keep metric
+        # cardinality bounded; unmatched paths group under 'unmatched'.
+        route = request.scope.get("route")
+        path = getattr(route, "path", "unmatched")
+        if path != "/metrics":  # do not meter the meter
+            HTTP_REQUEST_DURATION.labels(
+                method=request.method, path=path,
+                status=str(response.status_code),
+            ).observe(_time.perf_counter() - t0)
+        return response
+
+    @app.get("/metrics", include_in_schema=False)
+    def metrics():
+        from starlette.responses import Response
+
+        from app.observability import render_metrics
+
+        payload, content_type = render_metrics()
+        return Response(content=payload, media_type=content_type)
 
     app.include_router(health_router)
     app.include_router(query_router)

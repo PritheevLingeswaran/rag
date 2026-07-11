@@ -86,6 +86,11 @@ class Settings(BaseSettings):
     cors_origins: str | None = None
     max_request_bytes: int = 16_384
 
+    # Response cache (Stage 2.5 capacity math: cache hits spend no LLM
+    # quota and no pipeline compute -- on this infra the cache IS
+    # capacity). Requires Redis; bypassed (and counted) without it.
+    cache_ttl_s: int = 3600
+
     @property
     def cors_origin_list(self) -> list[str]:
         if not self.cors_origins:

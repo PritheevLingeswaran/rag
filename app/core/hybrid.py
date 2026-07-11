@@ -184,23 +184,56 @@ class HybridPipeline:
         return chunks[:self.final_top_k], info
 
     def retrieve(self, query: str) -> tuple[list[RetrievedChunk], RerankInfo]:
+        from app.observability import RERANK_STATUS, RETRIEVAL_DURATION
+
+        t_total = time.perf_counter()
+        t0 = time.perf_counter()
         bm25_ids = [cid for cid, _ in self.bm25.search(query, self.bm25_top_n)]
+        bm25_s = time.perf_counter() - t0
+
+        t0 = time.perf_counter()
         query_vec = self.embedder.embed_batch([query])[0]
+        embed_s = time.perf_counter() - t0
+
+        t0 = time.perf_counter()
         dense_ids = [cid for cid, _ in self.dense.search(query_vec, self.dense_top_n)]
+        dense_s = time.perf_counter() - t0
 
         candidate_depth = self.rerank_depth or self.final_top_k
         fused = rrf_fuse([bm25_ids, dense_ids], top_k=candidate_depth)
-        if not fused:
-            return [], RerankInfo(RERANK_NO_CANDIDATES, 0, 0, 0.0)
 
-        if self.rerank_depth == 0:
+        if not fused:
+            info = RerankInfo(RERANK_NO_CANDIDATES, 0, 0, 0.0)
+            chunks: list[RetrievedChunk] = []
+        elif self.rerank_depth == 0:
             chunks = [
                 RetrievedChunk(cid, self.chunk_texts[cid], rrf, "rrf")
                 for cid, rrf in fused[:self.final_top_k]
             ]
-            return chunks, RerankInfo(RERANK_DISABLED, 0, len(fused), 0.0)
+            info = RerankInfo(RERANK_DISABLED, 0, len(fused), 0.0)
+        else:
+            chunks, info = self._rerank_with_budget(query, fused)
 
-        chunks, info = self._rerank_with_budget(query, fused)
+        total_s = time.perf_counter() - t_total
+        RETRIEVAL_DURATION.labels(stage="embed").observe(embed_s)
+        RETRIEVAL_DURATION.labels(stage="bm25").observe(bm25_s)
+        RETRIEVAL_DURATION.labels(stage="dense").observe(dense_s)
+        RETRIEVAL_DURATION.labels(stage="rerank").observe(info.elapsed_ms / 1000.0)
+        RETRIEVAL_DURATION.labels(stage="total").observe(total_s)
+        RERANK_STATUS.labels(status=info.status).inc()
+
+        # One line per request: the retrieval leg of the request trace.
+        logger.info(
+            "retrieval_completed",
+            embed_ms=round(embed_s * 1000, 1),
+            bm25_ms=round(bm25_s * 1000, 1),
+            dense_ms=round(dense_s * 1000, 1),
+            rerank_ms=info.elapsed_ms,
+            rerank_status=info.status,
+            rerank_scored=info.scored,
+            candidates=info.candidates,
+            total_ms=round(total_s * 1000, 1),
+        )
         if info.status in (RERANK_PARTIAL, RERANK_SKIPPED_BUDGET):
             logger.info(
                 "rerank_degraded", status=info.status, scored=info.scored,

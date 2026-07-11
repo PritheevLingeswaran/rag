@@ -169,9 +169,12 @@ class GenerationService:
             return self._degraded(query, context, rerank_info.status,
                                   "degraded_no_llm")
 
+        from app.observability import QUOTA_THROTTLED
+
         if self.quota_guard is not None:
             decision = self.quota_guard.try_acquire()
             if not decision.allowed:
+                QUOTA_THROTTLED.labels(reason=decision.reason).inc()
                 # Expected budget management, NOT a failure: INFO level.
                 logger.info(
                     "llm_quota_throttled_proactive",
@@ -187,7 +190,12 @@ class GenerationService:
                 result.extra["throttle_reason"] = decision.reason
                 return result
 
+        from app.observability import ERRORS, LLM_REQUESTS
+
         prompt = self._build_prompt(query, context)
+        import time as _time
+
+        llm_t0 = _time.perf_counter()
         try:
             llm_resp = self._call_llm_once_retrying_5xx(
                 prompt, max_output_tokens
@@ -195,6 +203,8 @@ class GenerationService:
         except LLMQuotaError as exc:
             # Provider rejected despite proactive accounting: WARNING,
             # and open a cooldown so we stop asking until it clears.
+            LLM_REQUESTS.labels(outcome="quota_429").inc()
+            ERRORS.labels(type="llm_quota_429").inc()
             logger.warning("llm_quota_exhausted",
                            retry_after_s=exc.retry_after_s)
             if self.quota_guard is not None:
@@ -203,21 +213,31 @@ class GenerationService:
                                   "degraded_quota",
                                   retry_after_s=exc.retry_after_s)
         except LLMTimeoutError as exc:
+            LLM_REQUESTS.labels(outcome="timeout").inc()
+            ERRORS.labels(type="llm_timeout").inc()
             logger.warning("llm_timeout", error=str(exc))
             return self._degraded(query, context, rerank_info.status,
                                   "degraded_timeout")
         except LLMServerError as exc:
+            LLM_REQUESTS.labels(outcome="server_error").inc()
+            ERRORS.labels(type="llm_server_error").inc()
             logger.error("llm_server_error_after_retry", error=str(exc))
             return self._degraded(query, context, rerank_info.status,
                                   "degraded_llm_error")
         except LLMMalformedError as exc:
+            LLM_REQUESTS.labels(outcome="malformed").inc()
+            ERRORS.labels(type="llm_malformed").inc()
             logger.error("llm_malformed_response", error=str(exc))
             return self._degraded(query, context, rerank_info.status,
                                   "degraded_llm_malformed")
         except LLMAuthError as exc:
+            LLM_REQUESTS.labels(outcome="auth").inc()
+            ERRORS.labels(type="llm_auth").inc()
             logger.error("llm_auth_failure_check_config", error=str(exc))
             return self._degraded(query, context, rerank_info.status,
                                   "degraded_llm_auth")
+        LLM_REQUESTS.labels(outcome="ok").inc()
+        llm_ms = round((_time.perf_counter() - llm_t0) * 1000, 1)
 
         if llm_resp.text.strip().lower().rstrip(".") == IDK_MARKER:
             return GenerationResult(
@@ -232,7 +252,22 @@ class GenerationService:
         validation = self.validator.validate(
             llm_resp.text, [(c.chunk_id, c.text) for c in context]
         )
+        from app.observability import (
+            CITATION_REJECTED_ANSWERS,
+            CITATION_SENTENCES,
+        )
+
+        for verdict in validation.verdicts:
+            CITATION_SENTENCES.labels(verdict=verdict.verdict).inc()
+        logger.info(
+            "generation_completed",
+            llm_ms=llm_ms, llm_model=llm_resp.model,
+            output_tokens=llm_resp.output_tokens,
+            sentences_kept=validation.kept,
+            sentences_rejected=validation.rejected,
+        )
         if validation.all_rejected:
+            CITATION_REJECTED_ANSWERS.inc()
             logger.warning(
                 "citation_validation_rejected_all",
                 rejected=validation.rejected,

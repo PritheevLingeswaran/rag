@@ -19,12 +19,15 @@ def get_client_id(
     """Authenticates the request and returns a stable client identity
     (used for rate limiting and quotas). 401 on failure; anonymous
     access is allowed only outside production, and logged."""
+    from app.observability import ERRORS
+
     keys = settings.api_key_list
     provided = request.headers.get("x-api-key", "")
     if keys:
         for key in keys:
             if hmac.compare_digest(provided, key):
                 return f"key:{key[:4]}...{len(key)}"
+        ERRORS.labels(type="auth_failed").inc()
         raise HTTPException(status_code=401,
                             detail="missing or invalid API key")
     if settings.is_production:
