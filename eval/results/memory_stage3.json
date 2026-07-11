@@ -1,0 +1,45 @@
+{
+  "chunks": 50000,
+  "architecture": "raw onnxruntime, arena off, prepacking off, 1 thread; rerank max_len 256 micro_batch 5; faiss loaded from file",
+  "steps": [
+    {
+      "label": "0. bare interpreter + stdlib",
+      "rss_mb": 19.2,
+      "peak_mb": 19.2
+    },
+    {
+      "label": "1. + FastAPI app imported (app.main)",
+      "rss_mb": 49.9,
+      "peak_mb": 49.9
+    },
+    {
+      "label": "2. + ONNX embedder AND reranker sessions loaded",
+      "rss_mb": 168.7,
+      "peak_mb": 171.3
+    },
+    {
+      "label": "3. + both models warmed (rerank max_len=256, micro_batch=5)",
+      "rss_mb": 171.2,
+      "peak_mb": 171.3
+    },
+    {
+      "label": "4. + FAISS index 50000 x 384 read from disk (prod boot)",
+      "rss_mb": 247.6,
+      "peak_mb": 247.6
+    },
+    {
+      "label": "5. + BM25 over 50000 chunks + chunk text store",
+      "rss_mb": 363.5,
+      "peak_mb": 374.3
+    },
+    {
+      "label": "6. after 25-query burst through full hybrid path",
+      "rss_mb": 367.3,
+      "peak_mb": 407.6
+    }
+  ],
+  "peak_rss_mb": 407.6,
+  "render_cap_mb": 512,
+  "verdict": "FITS",
+  "platform_caveat": "measured on Windows; re-verify on Linux container before deploy"
+}

@@ -1,0 +1,52 @@
+{
+  "timestamp_utc": "2026-07-11T02:08:44.598034+00:00",
+  "command": "scripts\\load_test_retrieval.py --chunks 50000 --requests 200 --concurrency 1,4,8 --style english --rerank-depth 20 --json eval\\results\\loadtest_stage3_english_d20.json",
+  "chunks": 50000,
+  "corpus_style": "english",
+  "pipeline_config": {
+    "bm25_top_n": 30,
+    "dense_top_n": 30,
+    "rerank_depth": 20,
+    "final_top_k": 10
+  },
+  "environment": {
+    "python": "3.11.9",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "cpu_count": 8
+  },
+  "levels": [
+    {
+      "concurrency": 1,
+      "requests": 200,
+      "p50_ms": 1429.4,
+      "p95_ms": 1598.0,
+      "p99_ms": 1763.1,
+      "mean_ms": 1441.1,
+      "max_ms": 1792.5,
+      "throughput_rps": 0.69,
+      "wall_s": 288.2
+    },
+    {
+      "concurrency": 4,
+      "requests": 200,
+      "p50_ms": 2163.0,
+      "p95_ms": 2499.1,
+      "p99_ms": 2917.2,
+      "mean_ms": 2189.0,
+      "max_ms": 3035.3,
+      "throughput_rps": 1.8,
+      "wall_s": 111.2
+    },
+    {
+      "concurrency": 8,
+      "requests": 200,
+      "p50_ms": 4224.8,
+      "p95_ms": 10804908.7,
+      "p99_ms": 11392427.6,
+      "mean_ms": 891880.2,
+      "max_ms": 11393463.4,
+      "throughput_rps": 0.01,
+      "wall_s": 22297.7
+    }
+  ]
+}

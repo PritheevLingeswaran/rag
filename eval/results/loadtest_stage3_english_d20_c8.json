@@ -1,0 +1,30 @@
+{
+  "timestamp_utc": "2026-07-11T02:11:27.589261+00:00",
+  "command": "scripts\\load_test_retrieval.py --chunks 50000 --requests 200 --concurrency 8 --style english --rerank-depth 20 --json eval\\results\\loadtest_stage3_english_d20_c8.json",
+  "chunks": 50000,
+  "corpus_style": "english",
+  "pipeline_config": {
+    "bm25_top_n": 30,
+    "dense_top_n": 30,
+    "rerank_depth": 20,
+    "final_top_k": 10
+  },
+  "environment": {
+    "python": "3.11.9",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "cpu_count": 8
+  },
+  "levels": [
+    {
+      "concurrency": 8,
+      "requests": 200,
+      "p50_ms": 3550.6,
+      "p95_ms": 5028.5,
+      "p99_ms": 5817.1,
+      "mean_ms": 3775.2,
+      "max_ms": 6296.6,
+      "throughput_rps": 2.1,
+      "wall_s": 95.1
+    }
+  ]
+}

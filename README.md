@@ -46,6 +46,20 @@ free, and strict against verbatim fabrication. When abstractive generation
 lands, an LLM-judge metric can be added *alongside* it (never replacing it)
 under a new harness version.
 
+## Retrieval core (Stage 3)
+
+Hybrid retrieval: BM25 (numpy posting lists, `app/core/bm25.py`) and dense
+FAISS retrieval (`app/core/dense.py`) run as isolated modules, fused with
+Reciprocal Rank Fusion (`app/core/rrf.py`, k=60), then reranked by a
+cross-encoder (`app/core/onnx_text.py`). Embedding and reranking are LOCAL
+int8 ONNX models (MiniLM-L6 family) running on raw onnxruntime with memory
+arenas and weight prepacking disabled — required to fit Render's 512MB cap
+(measured gate: `scripts/measure_memory.py`, results in
+`eval/results/memory_stage3.json`: 407.6MB peak at 50k chunks, FITS).
+
+Load-test results and the latency consequences for free-tier serving are
+in `docs/loadtest_stage3.md`.
+
 ## Stage 0 skeleton
 
 `src/ragp/` contains the earliest working pipeline: a dependency-free BM25

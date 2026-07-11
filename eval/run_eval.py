@@ -136,13 +136,27 @@ def percentile(values: list[float], pct: float) -> float:
     return ordered[rank - 1]
 
 
-def evaluate() -> dict:
-    pipeline = SkeletonPipeline(CORPUS_PATH, top_k=MRR_CUTOFF)
+def build_pipeline(name: str):
+    """The pipeline-under-test is variable; the metrics are the contract."""
+    if name == "skeleton":
+        return SkeletonPipeline(CORPUS_PATH, top_k=MRR_CUTOFF)
+    if name == "hybrid":
+        from app.core.bootstrap import build_hybrid_from_corpus
+
+        return build_hybrid_from_corpus(CORPUS_PATH, final_top_k=MRR_CUTOFF)
+    raise ValueError(f"unknown pipeline {name!r}")
+
+
+def evaluate(pipeline_name: str) -> dict:
+    pipeline = build_pipeline(pipeline_name)
     dataset = load_dataset(DATASET_PATH)
 
     # Validate gold chunk ids against the actual chunker output up front,
     # so a chunking-contract drift fails loudly instead of scoring as zeros.
-    known = set(pipeline._chunks.keys())
+    if hasattr(pipeline, "chunk_texts"):
+        known = set(pipeline.chunk_texts.keys())
+    else:
+        known = set(pipeline._chunks.keys())
     for row in dataset:
         unknown = [c for c in row["relevant_chunk_ids"] if c not in known]
         if unknown:
@@ -226,6 +240,7 @@ def evaluate() -> dict:
         "corpus_sha256": sha256_file(CORPUS_PATH),
         "dataset_sha256": sha256_file(DATASET_PATH),
         "config": {
+            "pipeline": pipeline_name,
             "mrr_cutoff": MRR_CUTOFF,
             "grounding_threshold": GROUNDING_THRESHOLD,
             "latency_warmup": LATENCY_WARMUP,
@@ -290,6 +305,9 @@ def main() -> int:
                         help="prior results JSON to diff against")
     parser.add_argument("--tag", type=str, default="run",
                         help="label for the results filename")
+    parser.add_argument("--pipeline", choices=["skeleton", "hybrid"],
+                        default="hybrid",
+                        help="pipeline under test (metrics are identical)")
     args = parser.parse_args()
 
     baseline = None
@@ -299,7 +317,7 @@ def main() -> int:
             print(f"WARNING: baseline harness v{baseline.get('harness_version')} "
                   f"!= current v{HARNESS_VERSION}; deltas may not be comparable.")
 
-    report = evaluate()
+    report = evaluate(args.pipeline)
     print_report(report, baseline)
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
