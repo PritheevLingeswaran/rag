@@ -1,0 +1,415 @@
+{
+  "harness_version": "1.0",
+  "app_version": "0.1.0",
+  "timestamp_utc": "2026-07-11T11:01:33.762555+00:00",
+  "git_commit": "1e49e6fc61717d802453a3e826deb513514e8634",
+  "random_seed": 42,
+  "corpus_sha256": "55e5efaa7ed381fff7ca58a02b985e14ab536cb7ecd754180c9765007f8681cb",
+  "dataset_sha256": "3143a8bb510f5d706a4cdcf9d92cc878577e5a447b21d8f86c3873f4e7f86a98",
+  "config": {
+    "pipeline": "hybrid",
+    "mrr_cutoff": 10,
+    "grounding_threshold": 0.7,
+    "latency_warmup": 3,
+    "latency_repeats": 5,
+    "top_k": 10
+  },
+  "environment": {
+    "python": "3.11.9",
+    "platform": "Windows-10-10.0.26200-SP0"
+  },
+  "metrics": {
+    "p_at_1": 0.9,
+    "mrr_at_10": 0.9417,
+    "hallucination_rate": 0.0,
+    "unsupported_token_rate": 0.0,
+    "latency_p50_ms": 659.012,
+    "latency_p95_ms": 726.244,
+    "num_queries": 20
+  },
+  "per_query": [
+    {
+      "query_id": "q01",
+      "p_at_1": 1.0,
+      "reciprocal_rank": 1.0,
+      "first_gold_rank": 1.0,
+      "top1": "raft::c0",
+      "gold": [
+        "raft::c0"
+      ],
+      "hallucinated": false,
+      "unsupported_sentences": 0,
+      "answer_sentences": 2,
+      "unsupported_tokens": 0,
+      "answer_tokens": 18,
+      "latency_ms": 633.07,
+      "rerank_status": "full",
+      "generation_status": null,
+      "answer": "Raft is a consensus algorithm designed to be easier to understand than Paxos. In Raft, time is divided into terms, and each term begins with a leader election."
+    },
+    {
+      "query_id": "q02",
+      "p_at_1": 1.0,
+      "reciprocal_rank": 1.0,
+      "first_gold_rank": 1.0,
+      "top1": "raft::c1",
+      "gold": [
+        "raft::c1"
+      ],
+      "hallucinated": false,
+      "unsupported_sentences": 0,
+      "answer_sentences": 2,
+      "unsupported_tokens": 0,
+      "answer_tokens": 27,
+      "latency_ms": 608.319,
+      "rerank_status": "full",
+      "generation_status": null,
+      "answer": "Once elected, the Raft leader accepts client writes and replicates them as log entries to followers via AppendEntries RPCs. An entry is considered committed once the leader has replicated it on a majority of servers, at which point it is applied to the state machine."
+    },
+    {
+      "query_id": "q03",
+      "p_at_1": 1.0,
+      "reciprocal_rank": 1.0,
+      "first_gold_rank": 1.0,
+      "top1": "paxos::c1",
+      "gold": [
+        "paxos::c1"
+      ],
+      "hallucinated": false,
+      "unsupported_sentences": 0,
+      "answer_sentences": 2,
+      "unsupported_tokens": 0,
+      "answer_tokens": 20,
+      "latency_ms": 653.699,
+      "rerank_status": "full",
+      "generation_status": null,
+      "answer": "Paxos reaches agreement in two phases. In the prepare phase, a proposer sends a proposal number n and acceptors promise not to accept proposals numbered lower than n."
+    },
+    {
+      "query_id": "q04",
+      "p_at_1": 1.0,
+      "reciprocal_rank": 1.0,
+      "first_gold_rank": 1.0,
+      "top1": "bm25::c0",
+      "gold": [
+        "bm25::c0"
+      ],
+      "hallucinated": false,
+      "unsupported_sentences": 0,
+      "answer_sentences": 2,
+      "unsupported_tokens": 0,
+      "answer_tokens": 35,
+      "latency_ms": 656.49,
+      "rerank_status": "full",
+      "generation_status": null,
+      "answer": "BM25 is a lexical ranking function that scores a document for a query by combining term frequency, inverse document frequency, and document length normalization. Its two tunable parameters are k1, which controls how quickly term-frequency contribution saturates, and b, which controls how strongly scores are normalized by document length relative to the average."
+    },
+    {
+      "query_id": "q05",
+      "p_at_1": 1.0,
+      "reciprocal_rank": 1.0,
+      "first_gold_rank": 1.0,
+      "top1": "bm25::c1",
+      "gold": [
+        "bm25::c1"
+      ],
+      "hallucinated": false,
+      "unsupported_sentences": 0,
+      "answer_sentences": 2,
+      "unsupported_tokens": 0,
+      "answer_tokens": 37,
+      "latency_ms": 676.261,
+      "rerank_status": "full",
+      "generation_status": null,
+      "answer": "Compared to plain TF-IDF, the key improvement in BM25 is term-frequency saturation: the tenth occurrence of a term adds far less score than the first, because the contribution asymptotically approaches a ceiling determined by k1. This prevents documents that simply repeat a query term many times from dominating the ranking."
+    },
+    {
+      "query_id": "q06",
+      "p_at_1": 1.0,
+      "reciprocal_rank": 1.0,
+      "first_gold_rank": 1.0,
+      "top1": "hnsw::c1",
+      "gold": [
+        "hnsw::c1"
+      ],
+      "hallucinated": false,
+      "unsupported_sentences": 0,
+      "answer_sentences": 2,
+      "unsupported_tokens": 0,
+      "answer_tokens": 37,
+      "latency_ms": 665.686,
+      "rerank_status": "full",
+      "generation_status": null,
+      "answer": "The main HNSW search-time parameter is ef_search, the size of the dynamic candidate list kept during traversal. Raising ef_search increases recall because more candidate neighbors are explored, but it increases query latency roughly linearly, so it is the primary knob for trading accuracy against speed."
+    },
+    {
+      "query_id": "q07",
+      "p_at_1": 0.0,
+      "reciprocal_rank": 0.5,
+      "first_gold_rank": 2.0,
+      "top1": "faiss-ivf::c0",
+      "gold": [
+        "faiss-ivf::c1"
+      ],
+      "hallucinated": false,
+      "unsupported_sentences": 0,
+      "answer_sentences": 2,
+      "unsupported_tokens": 0,
+      "answer_tokens": 32,
+      "latency_ms": 659.012,
+      "rerank_status": "full",
+      "generation_status": null,
+      "answer": "An IVF (inverted file) index in FAISS partitions the vector space with a coarse quantizer, typically k-means with nlist centroids. Each database vector is assigned to its nearest centroid's inverted list, so at query time only a fraction of the database needs to be scanned."
+    },
+    {
+      "query_id": "q08",
+      "p_at_1": 1.0,
+      "reciprocal_rank": 1.0,
+      "first_gold_rank": 1.0,
+      "top1": "product-quantization::c1",
+      "gold": [
+        "product-quantization::c1"
+      ],
+      "hallucinated": false,
+      "unsupported_sentences": 0,
+      "answer_sentences": 2,
+      "unsupported_tokens": 0,
+      "answer_tokens": 37,
+      "latency_ms": 726.244,
+      "rerank_status": "full",
+      "generation_status": null,
+      "answer": "The memory savings of PQ are large: a 768-dimensional float32 vector occupies 3072 bytes, but with m equal to 96 subquantizers it compresses to 96 bytes, a 32x reduction. The cost is approximation error in distance computations, which is why PQ indexes are often paired with a reranking step that rescoress top candidates with exact distances."
+    },
+    {
+      "query_id": "q09",
+      "p_at_1": 1.0,
+      "reciprocal_rank": 1.0,
+      "first_gold_rank": 1.0,
+      "top1": "cross-encoder::c1",
+      "gold": [
+        "cross-encoder::c0",
+        "cross-encoder::c1"
+      ],
+      "hallucinated": false,
+      "unsupported_sentences": 0,
+      "answer_sentences": 2,
+      "unsupported_tokens": 0,
+      "answer_tokens": 36,
+      "latency_ms": 816.051,
+      "rerank_status": "full",
+      "generation_status": null,
+      "answer": "The drawback of a cross-encoder is cost: it cannot precompute document representations, so every query-document pair requires a full forward pass. For this reason cross-encoders are used as rerankers over a small candidate set, typically the top 20 to 100 results from a cheaper first-stage retriever."
+    },
+    {
+      "query_id": "q10",
+      "p_at_1": 1.0,
+      "reciprocal_rank": 1.0,
+      "first_gold_rank": 1.0,
+      "top1": "redis-persistence::c1",
+      "gold": [
+        "redis-persistence::c0",
+        "redis-persistence::c1"
+      ],
+      "hallucinated": false,
+      "unsupported_sentences": 0,
+      "answer_sentences": 2,
+      "unsupported_tokens": 0,
+      "answer_tokens": 31,
+      "latency_ms": 672.833,
+      "rerank_status": "full",
+      "generation_status": null,
+      "answer": "The alternative is AOF (append-only file) persistence, in which Redis logs every write command it receives. The AOF can be configured to fsync every second or on every command, bounding data loss to that window, and Redis rewrites the AOF in the background to keep it from growing without bound."
+    },
+    {
+      "query_id": "q11",
+      "p_at_1": 0.0,
+      "reciprocal_rank": 0.3333333333333333,
+      "first_gold_rank": 3.0,
+      "top1": "connection-pooling::c1",
+      "gold": [
+        "postgres-mvcc::c1"
+      ],
+      "hallucinated": false,
+      "unsupported_sentences": 0,
+      "answer_sentences": 2,
+      "unsupported_tokens": 0,
+      "answer_tokens": 37,
+      "latency_ms": 650.77,
+      "rerank_status": "full",
+      "generation_status": null,
+      "answer": "PgBouncer, the standard PostgreSQL pooler, offers session, transaction, and statement pooling modes. Transaction pooling gives the highest connection reuse because a server connection is only held for the duration of a transaction, but it breaks session-level features such as prepared statements and advisory locks that assume a stable backend connection."
+    },
+    {
+      "query_id": "q12",
+      "p_at_1": 1.0,
+      "reciprocal_rank": 1.0,
+      "first_gold_rank": 1.0,
+      "top1": "kafka::c1",
+      "gold": [
+        "kafka::c1"
+      ],
+      "hallucinated": false,
+      "unsupported_sentences": 0,
+      "answer_sentences": 2,
+      "unsupported_tokens": 0,
+      "answer_tokens": 30,
+      "latency_ms": 650.493,
+      "rerank_status": "full",
+      "generation_status": null,
+      "answer": "Consumers in Kafka are organized into consumer groups. Each partition is assigned to exactly one consumer within a group, which is how Kafka parallelizes consumption while preserving per-partition order; adding more consumers than partitions leaves the extras idle."
+    },
+    {
+      "query_id": "q13",
+      "p_at_1": 1.0,
+      "reciprocal_rank": 1.0,
+      "first_gold_rank": 1.0,
+      "top1": "consistent-hashing::c1",
+      "gold": [
+        "consistent-hashing::c1"
+      ],
+      "hallucinated": false,
+      "unsupported_sentences": 0,
+      "answer_sentences": 2,
+      "unsupported_tokens": 0,
+      "answer_tokens": 33,
+      "latency_ms": 588.575,
+      "rerank_status": "full",
+      "generation_status": null,
+      "answer": "Plain consistent hashing can distribute load unevenly when there are few nodes. Virtual nodes fix this: each physical node is hashed to many positions on the ring, which smooths the distribution and lets heterogeneous machines take load proportional to their assigned number of virtual nodes."
+    },
+    {
+      "query_id": "q14",
+      "p_at_1": 1.0,
+      "reciprocal_rank": 1.0,
+      "first_gold_rank": 1.0,
+      "top1": "bloom-filter::c0",
+      "gold": [
+        "bloom-filter::c0"
+      ],
+      "hallucinated": false,
+      "unsupported_sentences": 0,
+      "answer_sentences": 2,
+      "unsupported_tokens": 0,
+      "answer_tokens": 26,
+      "latency_ms": 652.652,
+      "rerank_status": "full",
+      "generation_status": null,
+      "answer": "A Bloom filter is a space-efficient probabilistic structure for set membership. It can return false positives, claiming an element is present when it is not, but it never returns false negatives: if the filter says an element is absent, it is definitely absent."
+    },
+    {
+      "query_id": "q15",
+      "p_at_1": 1.0,
+      "reciprocal_rank": 1.0,
+      "first_gold_rank": 1.0,
+      "top1": "lsm-tree::c0",
+      "gold": [
+        "lsm-tree::c0",
+        "lsm-tree::c1"
+      ],
+      "hallucinated": false,
+      "unsupported_sentences": 0,
+      "answer_sentences": 2,
+      "unsupported_tokens": 0,
+      "answer_tokens": 35,
+      "latency_ms": 689.353,
+      "rerank_status": "full",
+      "generation_status": null,
+      "answer": "A log-structured merge tree (LSM tree) absorbs writes into an in-memory memtable, which is flushed to disk as an immutable sorted file called an SSTable when it fills. Because all disk writes are sequential, LSM trees achieve very high write throughput compared to update-in-place structures."
+    },
+    {
+      "query_id": "q16",
+      "p_at_1": 1.0,
+      "reciprocal_rank": 1.0,
+      "first_gold_rank": 1.0,
+      "top1": "cap::c1",
+      "gold": [
+        "cap::c1"
+      ],
+      "hallucinated": false,
+      "unsupported_sentences": 0,
+      "answer_sentences": 2,
+      "unsupported_tokens": 0,
+      "answer_tokens": 43,
+      "latency_ms": 679.949,
+      "rerank_status": "full",
+      "generation_status": null,
+      "answer": "PACELC extends CAP by observing that even without partitions there is a tradeoff: if a partition occurs (P), choose availability or consistency (A or C); else (E), choose between lower latency and stronger consistency (L or C). PACELC explains why systems like DynamoDB favor latency while systems like Spanner favor consistency even in healthy networks."
+    },
+    {
+      "query_id": "q17",
+      "p_at_1": 1.0,
+      "reciprocal_rank": 1.0,
+      "first_gold_rank": 1.0,
+      "top1": "prometheus::c1",
+      "gold": [
+        "prometheus::c1"
+      ],
+      "hallucinated": false,
+      "unsupported_sentences": 0,
+      "answer_sentences": 2,
+      "unsupported_tokens": 0,
+      "answer_tokens": 33,
+      "latency_ms": 701.553,
+      "rerank_status": "full",
+      "generation_status": null,
+      "answer": "Prometheus histograms record observations in cumulative buckets, and quantiles such as p95 are estimated at query time with the histogram_quantile function over bucket rates. The estimate's accuracy depends on bucket boundaries, so latency buckets must be chosen to bracket the SLO being measured."
+    },
+    {
+      "query_id": "q18",
+      "p_at_1": 1.0,
+      "reciprocal_rank": 1.0,
+      "first_gold_rank": 1.0,
+      "top1": "token-bucket::c1",
+      "gold": [
+        "token-bucket::c1"
+      ],
+      "hallucinated": false,
+      "unsupported_sentences": 0,
+      "answer_sentences": 2,
+      "unsupported_tokens": 0,
+      "answer_tokens": 38,
+      "latency_ms": 637.482,
+      "rerank_status": "full",
+      "generation_status": null,
+      "answer": "The leaky bucket algorithm, by contrast, drains requests at a constant output rate regardless of arrival pattern, smoothing traffic but forbidding bursts. Token bucket is the usual choice for API rate limiting because it tolerates bursty clients, while leaky bucket suits traffic shaping where a steady downstream rate matters."
+    },
+    {
+      "query_id": "q19",
+      "p_at_1": 1.0,
+      "reciprocal_rank": 1.0,
+      "first_gold_rank": 1.0,
+      "top1": "rate-limit-distributed::c1",
+      "gold": [
+        "rate-limit-distributed::c1"
+      ],
+      "hallucinated": false,
+      "unsupported_sentences": 0,
+      "answer_sentences": 2,
+      "unsupported_tokens": 0,
+      "answer_tokens": 39,
+      "latency_ms": 664.903,
+      "rerank_status": "full",
+      "generation_status": null,
+      "answer": "A read-then-write implementation of a shared counter has a race condition: two servers can read the same count, both conclude the request is allowed, and both increment, exceeding the limit. The fix is to make the check-and-update atomic, either with a Redis Lua script that runs as a single operation or with atomic commands like INCR combined with EXPIRE."
+    },
+    {
+      "query_id": "q20",
+      "p_at_1": 1.0,
+      "reciprocal_rank": 1.0,
+      "first_gold_rank": 1.0,
+      "top1": "connection-pooling::c1",
+      "gold": [
+        "connection-pooling::c1"
+      ],
+      "hallucinated": false,
+      "unsupported_sentences": 0,
+      "answer_sentences": 2,
+      "unsupported_tokens": 0,
+      "answer_tokens": 37,
+      "latency_ms": 668.356,
+      "rerank_status": "full",
+      "generation_status": null,
+      "answer": "PgBouncer, the standard PostgreSQL pooler, offers session, transaction, and statement pooling modes. Transaction pooling gives the highest connection reuse because a server connection is only held for the duration of a transaction, but it breaks session-level features such as prepared statements and advisory locks that assume a stable backend connection."
+    }
+  ]
+}

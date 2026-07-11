@@ -10,4 +10,5 @@ scripts/
 indexes/
 docker/
 *.md
+!PRIVACY.md
 .env

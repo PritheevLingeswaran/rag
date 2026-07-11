@@ -94,10 +94,19 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.app_name,
         version=__version__,
+        description="Hybrid RAG API. Privacy policy: [/privacy](/privacy) "
+                    "— no accounts, queries never stored tied to identity.",
         lifespan=lifespan,
         docs_url="/docs",
         openapi_url="/openapi.json",
     )
+
+    @app.get("/privacy", include_in_schema=False)
+    def privacy():
+        from starlette.responses import PlainTextResponse
+
+        policy = Path(__file__).resolve().parent.parent / "PRIVACY.md"
+        return PlainTextResponse(policy.read_text(encoding="utf-8"))
 
     # Middleware (outermost first): request-id wraps everything so even
     # size-limit rejections carry an id; size limit runs before routing.

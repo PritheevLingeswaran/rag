@@ -223,6 +223,11 @@ class IndexVersionRepo:
 
 
 class QueryLogRepo:
+    """DELIBERATELY UNWIRED from serving (Stage 8.9 privacy policy):
+    the published policy states raw queries are never stored. Wiring
+    this into the request path requires updating PRIVACY.md FIRST and
+    deciding an anonymization + retention scheme -- in that order."""
+
     def __init__(self, conn: psycopg.Connection) -> None:
         self.conn = conn
 
