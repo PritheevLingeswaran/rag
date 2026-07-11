@@ -339,7 +339,13 @@ def main() -> int:
                                  "generation"],
                         default="hybrid",
                         help="pipeline under test (metrics are identical)")
+    parser.add_argument("--fail-on-regression", action="store_true",
+                        help="exit 2 if any QUALITY metric is worse than "
+                             "the baseline (latency excluded: CI machines "
+                             "vary; quality must not)")
     args = parser.parse_args()
+    if args.fail_on_regression and args.baseline is None:
+        parser.error("--fail-on-regression requires --baseline")
 
     baseline = None
     if args.baseline is not None:
@@ -356,6 +362,22 @@ def main() -> int:
     out_path = RESULTS_DIR / f"{args.tag}_{stamp}.json"
     out_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(f"results written: {out_path.relative_to(REPO_ROOT)}")
+
+    if args.fail_on_regression:
+        m, bm = report["metrics"], baseline["metrics"]
+        regressions = []
+        for key, worse in [("p_at_1", lambda c, b: c < b),
+                           ("mrr_at_10", lambda c, b: c < b),
+                           ("hallucination_rate", lambda c, b: c > b),
+                           ("unsupported_token_rate", lambda c, b: c > b)]:
+            if worse(m[key], bm[key]):
+                regressions.append(f"{key}: {m[key]} vs baseline {bm[key]}")
+        if regressions:
+            print("QUALITY REGRESSION vs baseline:")
+            for r in regressions:
+                print(f"  {r}")
+            return 2
+        print("quality gate: no regression vs baseline")
     return 0
 
 
