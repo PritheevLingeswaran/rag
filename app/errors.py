@@ -35,3 +35,34 @@ class IndexIntegrityError(RagpError):
 
 class MigrationError(RagpError):
     """A schema migration failed to apply."""
+
+
+class LLMError(RagpError):
+    """Base for LLM API failures. GenerationService catches these and
+    degrades explicitly; they never propagate to the client raw."""
+
+
+class LLMAuthError(LLMError):
+    """Invalid/missing API key (HTTP 401/403). Not retryable; a config
+    problem, logged loudly."""
+
+
+class LLMQuotaError(LLMError):
+    """Rate limit / quota exhausted (HTTP 429 RESOURCE_EXHAUSTED)."""
+
+    def __init__(self, message: str, retry_after_s: float | None = None) -> None:
+        super().__init__(message)
+        self.retry_after_s = retry_after_s
+
+
+class LLMTimeoutError(LLMError):
+    """The request exceeded our client-side timeout."""
+
+
+class LLMServerError(LLMError):
+    """Provider-side 5xx or network failure. Retryable once."""
+
+
+class LLMMalformedError(LLMError):
+    """Response was not in the documented shape (unparseable JSON,
+    no candidates, empty text, safety-blocked with no content)."""

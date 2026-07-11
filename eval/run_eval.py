@@ -56,23 +56,18 @@ CORPUS_PATH = REPO_ROOT / "data" / "corpus_v1.jsonl"
 DATASET_PATH = REPO_ROOT / "eval" / "dataset_v1.jsonl"
 RESULTS_DIR = REPO_ROOT / "eval" / "results"
 MRR_CUTOFF = 10
-GROUNDING_THRESHOLD = 0.7
 LATENCY_WARMUP = 3
 LATENCY_REPEATS = 5
 
-STOPWORDS = frozenset(
-    "a an and are as at be by for from has have how in is it its of on or "
-    "that the to was were what when where which who why with does do did "
-    "not no can could should would".split()
+# Grounding definitions live in app.core.grounding (shared with the
+# citation validator so measurement and enforcement can never drift).
+# The definition is unchanged from harness v1.0; the refactor was
+# verified bit-identical against the committed baseline.
+from app.core.grounding import (  # noqa: E402
+    GROUNDING_THRESHOLD,
+    _SENTENCE_RE,
+    content_tokens,
 )
-
-import re  # noqa: E402
-
-_SENTENCE_RE = re.compile(r"(?<=[.!?])\s+")
-
-
-def content_tokens(text: str) -> list[str]:
-    return [t for t in tokenize(text) if t not in STOPWORDS]
 
 
 def sentence_support(answer: str, context: str) -> tuple[int, int, int, int]:
@@ -140,10 +135,39 @@ def build_pipeline(name: str):
     """The pipeline-under-test is variable; the metrics are the contract."""
     if name == "skeleton":
         return SkeletonPipeline(CORPUS_PATH, top_k=MRR_CUTOFF)
+    # Both hybrid modes pin rerank_depth and rerank_budget_ms explicitly:
+    # eval must never inherit production Settings defaults, or results
+    # would become timing- and config-dependent.
     if name == "hybrid":
         from app.core.bootstrap import build_hybrid_from_corpus
 
-        return build_hybrid_from_corpus(CORPUS_PATH, final_top_k=MRR_CUTOFF)
+        return build_hybrid_from_corpus(
+            CORPUS_PATH, final_top_k=MRR_CUTOFF,
+            rerank_depth=20, rerank_budget_ms=None,
+        )
+    if name == "hybrid-fallback":
+        # Forced budget=0: the deterministic pure-RRF degradation path.
+        # This is what users get when the rerank budget is exhausted, so
+        # its quality is measured and reported alongside the full path.
+        from app.core.bootstrap import build_hybrid_from_corpus
+
+        return build_hybrid_from_corpus(
+            CORPUS_PATH, final_top_k=MRR_CUTOFF,
+            rerank_depth=20, rerank_budget_ms=0.0,
+        )
+    if name == "generation":
+        # Full serving path: hybrid retrieval + GenerationService +
+        # citation validation. Real Gemini when GEMINI_API_KEY is set;
+        # otherwise the explicit degraded_no_llm extractive path (what a
+        # keyless deployment actually serves). Live-LLM runs are neither
+        # deterministic nor free -- tag them and never overwrite the
+        # committed retrieval baselines with them.
+        from app.core.bootstrap import build_generation_pipeline
+
+        return build_generation_pipeline(
+            CORPUS_PATH, final_top_k=MRR_CUTOFF,
+            rerank_depth=20, rerank_budget_ms=None,
+        )
     raise ValueError(f"unknown pipeline {name!r}")
 
 
@@ -208,6 +232,11 @@ def evaluate(pipeline_name: str) -> dict:
             "unsupported_tokens": u_toks,
             "answer_tokens": n_toks,
             "latency_ms": round(latency_ms, 3),
+            "rerank_status": (
+                result.rerank.status if hasattr(result, "rerank")
+                else getattr(result, "rerank_status", None)
+            ),
+            "generation_status": getattr(result, "status", None),
             "answer": result.answer,
         })
 
@@ -305,7 +334,9 @@ def main() -> int:
                         help="prior results JSON to diff against")
     parser.add_argument("--tag", type=str, default="run",
                         help="label for the results filename")
-    parser.add_argument("--pipeline", choices=["skeleton", "hybrid"],
+    parser.add_argument("--pipeline",
+                        choices=["skeleton", "hybrid", "hybrid-fallback",
+                                 "generation"],
                         default="hybrid",
                         help="pipeline under test (metrics are identical)")
     args = parser.parse_args()

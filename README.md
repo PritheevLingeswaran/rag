@@ -60,6 +60,27 @@ arenas and weight prepacking disabled — required to fit Render's 512MB cap
 Load-test results and the latency consequences for free-tier serving are
 in `docs/loadtest_stage3.md`.
 
+## Generation & citations (Stage 4)
+
+`app/generation/` adds source-grounded generation over the hybrid
+retriever: prompt with numbered sources → Gemini (REST, typed error
+taxonomy in `app/errors.py`) → **chunk-level citation validation before
+anything is returned**. Every sentence is checked against the chunks it
+cites using the same grounding definition as the eval harness
+(`app/core/grounding.py` — measurement and enforcement can never drift);
+fabricated or mis-cited sentences are removed, and if nothing survives the
+service falls back to a deterministic extractive answer. Every LLM failure
+mode (quota 429, timeout, 5xx, malformed, auth, no key) maps to an
+explicit `degraded_*` status with an extractive answer — the exact
+client-visible contract is the table in `app/generation/service.py`.
+
+Reranking degradation is equally explicit: every response carries
+`rerank_status` (`full` / `partial` / `skipped_budget` / `disabled`), with
+an adaptive per-request budget that predicts micro-batch cost from a
+learned EWMA and falls back to RRF order rather than blowing the latency
+target (defaults set from CPU-throttled measurements, not laptop numbers:
+`docs/loadtest_stage4.md`).
+
 ## Stage 0 skeleton
 
 `src/ragp/` contains the earliest working pipeline: a dependency-free BM25
