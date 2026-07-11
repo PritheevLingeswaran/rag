@@ -1,0 +1,82 @@
+{
+  "timestamp_utc": "2026-07-11T03:42:09.500643+00:00",
+  "command": "scripts\\load_test_api.py --url http://127.0.0.1:18000 --concurrency 4,6,8,16 --requests 8 --json eval\\results\\api_loadtest_throttled_depth4.json",
+  "url": "http://127.0.0.1:18000",
+  "requests_per_worker": 8,
+  "admission_config": {
+    "in_flight": 0,
+    "waiting": 0,
+    "max_concurrency": 2,
+    "max_queue_depth": 4,
+    "admitted_total": 0,
+    "rejected_total": 0,
+    "service_time_ewma_s": 1.0
+  },
+  "admission_after": {
+    "in_flight": 0,
+    "waiting": 0,
+    "max_concurrency": 2,
+    "max_queue_depth": 4,
+    "admitted_total": 156,
+    "rejected_total": 116,
+    "service_time_ewma_s": 0.877
+  },
+  "levels": [
+    {
+      "offered_concurrency": 4,
+      "sent": 32,
+      "ok": 32,
+      "shed_503": 0,
+      "shed_rate": 0.0,
+      "ok_p50_ms": 1902.1,
+      "ok_p95_ms": 2602.6,
+      "ok_p99_ms": 3197.5,
+      "ok_mean_ms": 1883.4,
+      "retry_after_sample": null,
+      "throughput_ok_rps": 1.96,
+      "wall_s": 16.4
+    },
+    {
+      "offered_concurrency": 6,
+      "sent": 48,
+      "ok": 48,
+      "shed_503": 0,
+      "shed_rate": 0.0,
+      "ok_p50_ms": 2998.2,
+      "ok_p95_ms": 3502.6,
+      "ok_p99_ms": 3788.8,
+      "ok_mean_ms": 2902.7,
+      "retry_after_sample": null,
+      "throughput_ok_rps": 1.98,
+      "wall_s": 24.3
+    },
+    {
+      "offered_concurrency": 8,
+      "sent": 64,
+      "ok": 48,
+      "shed_503": 16,
+      "shed_rate": 0.25,
+      "ok_p50_ms": 2999.2,
+      "ok_p95_ms": 3596.8,
+      "ok_p99_ms": 3901.3,
+      "ok_mean_ms": 2910.5,
+      "retry_after_sample": "3",
+      "throughput_ok_rps": 1.95,
+      "wall_s": 24.6
+    },
+    {
+      "offered_concurrency": 16,
+      "sent": 128,
+      "ok": 28,
+      "shed_503": 100,
+      "shed_rate": 0.781,
+      "ok_p50_ms": 2704.6,
+      "ok_p95_ms": 5004.6,
+      "ok_p99_ms": 5059.1,
+      "ok_mean_ms": 2901.6,
+      "retry_after_sample": "3",
+      "throughput_ok_rps": 1.69,
+      "wall_s": 16.6
+    }
+  ]
+}

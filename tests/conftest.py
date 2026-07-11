@@ -12,6 +12,9 @@ import os
 import pytest
 
 os.environ.setdefault("ENVIRONMENT", "development")
+# Tests never boot the real models through the app lifespan; endpoints
+# under test inject stub services onto app.state instead.
+os.environ.setdefault("SERVE_PIPELINE", "false")
 
 
 @pytest.fixture(autouse=True)

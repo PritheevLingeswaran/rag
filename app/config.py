@@ -70,6 +70,30 @@ class Settings(BaseSettings):
     # Fraction of the provider's documented free-tier RPM/RPD we allow
     # ourselves (Stage 4.5). We hit our own wall before Google's.
     quota_safety_margin: float = 0.9
+
+    # API serving. api_keys is comma-separated; REQUIRED in production
+    # (startup fails loudly without it), optional in development where
+    # anonymous access is allowed and logged.
+    api_keys: str | None = None
+    rate_limit_per_minute: int = 30
+    corpus_path: str = "data/corpus_v1.jsonl"
+    serve_pipeline: bool = True   # tests boot the app without models
+
+    # Admission control (bounded queue in front of the pipeline).
+    # Values measured, not estimated (docs/stage5_admission.md):
+    # at 0.1 CPU throughput saturates at ~2.1 rps with 2 executing
+    # slots, and queue depth 4 caps admitted-request p95 at ~3s while
+    # anything beyond is shed with 503 + Retry-After. Depth 6 was
+    # measured first and rejected: it bought p95 ~4.4s waits, worse
+    # than telling the client to retry.
+    admission_max_concurrency: int = 2
+    admission_max_queue_depth: int = 4
+
+    @property
+    def api_key_list(self) -> list[str]:
+        if not self.api_keys:
+            return []
+        return [k.strip() for k in self.api_keys.split(",") if k.strip()]
     log_level: Literal[
         "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
     ] = "INFO"

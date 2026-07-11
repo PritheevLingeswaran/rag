@@ -81,6 +81,21 @@ learned EWMA and falls back to RRF order rather than blowing the latency
 target (defaults set from CPU-throttled measurements, not laptop numbers:
 `docs/loadtest_stage4.md`).
 
+## API serving & admission control (Stage 5)
+
+`POST /query` serves the full pipeline behind three ordered gates:
+API-key auth (401; anonymous only outside production), per-client Redis
+rate limiting (429 + Retry-After, fail-open on Redis outage), and a
+**bounded admission queue** (`app/api/admission.py`): at most
+`ADMISSION_MAX_CONCURRENCY` requests execute while
+`ADMISSION_MAX_QUEUE_DEPTH` wait; anything beyond gets an immediate
+**503 + Retry-After** (estimated from a live service-time EWMA) instead
+of unbounded queueing. Measured consequence: admitted-request p95 stays
+flat regardless of offered load; excess load is shed early and honestly.
+The empirically measured concurrency ceilings (local + 0.1-CPU
+container) are documented in `docs/stage5_admission.md`. Single-process
+by design — the 512MB cap cannot hold two model copies.
+
 ## Stage 0 skeleton
 
 `src/ragp/` contains the earliest working pipeline: a dependency-free BM25

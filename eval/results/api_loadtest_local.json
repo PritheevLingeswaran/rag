@@ -1,0 +1,96 @@
+{
+  "timestamp_utc": "2026-07-11T03:35:33.155652+00:00",
+  "command": "scripts\\load_test_api.py --url http://127.0.0.1:8000 --concurrency 1,2,4,8,16 --requests 30 --json eval\\results\\api_loadtest_local.json",
+  "url": "http://127.0.0.1:8000",
+  "requests_per_worker": 30,
+  "admission_config": {
+    "in_flight": 0,
+    "waiting": 0,
+    "max_concurrency": 2,
+    "max_queue_depth": 6,
+    "admitted_total": 1,
+    "rejected_total": 0,
+    "service_time_ewma_s": 0.877
+  },
+  "admission_after": {
+    "in_flight": 0,
+    "waiting": 0,
+    "max_concurrency": 2,
+    "max_queue_depth": 6,
+    "admitted_total": 669,
+    "rejected_total": 262,
+    "service_time_ewma_s": 0.348
+  },
+  "levels": [
+    {
+      "offered_concurrency": 1,
+      "sent": 30,
+      "ok": 30,
+      "shed_503": 0,
+      "shed_rate": 0.0,
+      "ok_p50_ms": 326.7,
+      "ok_p95_ms": 354.7,
+      "ok_p99_ms": 444.6,
+      "ok_mean_ms": 329.6,
+      "retry_after_sample": null,
+      "throughput_ok_rps": 3.03,
+      "wall_s": 9.9
+    },
+    {
+      "offered_concurrency": 2,
+      "sent": 60,
+      "ok": 60,
+      "shed_503": 0,
+      "shed_rate": 0.0,
+      "ok_p50_ms": 354.7,
+      "ok_p95_ms": 381.2,
+      "ok_p99_ms": 465.9,
+      "ok_mean_ms": 357.2,
+      "retry_after_sample": null,
+      "throughput_ok_rps": 5.59,
+      "wall_s": 10.7
+    },
+    {
+      "offered_concurrency": 4,
+      "sent": 120,
+      "ok": 120,
+      "shed_503": 0,
+      "shed_rate": 0.0,
+      "ok_p50_ms": 714.6,
+      "ok_p95_ms": 773.4,
+      "ok_p99_ms": 904.6,
+      "ok_mean_ms": 715.2,
+      "retry_after_sample": null,
+      "throughput_ok_rps": 5.54,
+      "wall_s": 21.7
+    },
+    {
+      "offered_concurrency": 8,
+      "sent": 240,
+      "ok": 240,
+      "shed_503": 0,
+      "shed_rate": 0.0,
+      "ok_p50_ms": 1422.6,
+      "ok_p95_ms": 1499.0,
+      "ok_p99_ms": 1620.1,
+      "ok_mean_ms": 1411.2,
+      "retry_after_sample": null,
+      "throughput_ok_rps": 5.59,
+      "wall_s": 42.9
+    },
+    {
+      "offered_concurrency": 16,
+      "sent": 480,
+      "ok": 218,
+      "shed_503": 262,
+      "shed_rate": 0.546,
+      "ok_p50_ms": 1307.7,
+      "ok_p95_ms": 1500.6,
+      "ok_p99_ms": 1637.0,
+      "ok_mean_ms": 1287.0,
+      "retry_after_sample": "2",
+      "throughput_ok_rps": 5.57,
+      "wall_s": 39.2
+    }
+  ]
+}
