@@ -14,7 +14,7 @@ validation happen once per process, not per request.
 
 from __future__ import annotations
 
-from functools import lru_cache
+import threading
 from typing import Literal
 
 from pydantic import Field
@@ -123,9 +123,32 @@ class Settings(BaseSettings):
         return self.environment == "production"
 
 
-@lru_cache(maxsize=1)
+# NOT lru_cache: functools.lru_cache does not lock around the wrapped
+# call, so concurrent first-calls each construct (and receive) their own
+# Settings instance -- measured in the Stage 6.5 audit: 64 concurrent
+# calls yielded 11 distinct instances. Benign only while Settings stays
+# immutable; double-checked locking makes the singleton actual.
+_settings_lock = threading.Lock()
+_settings_instance: Settings | None = None
+
+
 def get_settings() -> Settings:
-    return Settings()
+    global _settings_instance
+    if _settings_instance is None:
+        with _settings_lock:
+            if _settings_instance is None:
+                _settings_instance = Settings()
+    return _settings_instance
+
+
+def _clear_settings_cache() -> None:
+    global _settings_instance
+    with _settings_lock:
+        _settings_instance = None
+
+
+# tests use get_settings.cache_clear(), matching the old lru_cache API
+get_settings.cache_clear = _clear_settings_cache
 
 
 def require_setting(value: str | None, env_name: str) -> str:

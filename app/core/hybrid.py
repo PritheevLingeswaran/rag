@@ -40,6 +40,7 @@ docs/loadtest_stage4.md.
 from __future__ import annotations
 
 import re
+import threading
 import time
 from dataclasses import dataclass
 
@@ -116,9 +117,35 @@ class HybridPipeline:
         # EWMA of measured per-passage rerank cost (ms); None until the
         # first batch ever completes. Shared across requests on purpose:
         # it is a property of the host, not of a query.
+        #
+        # Concurrency (Stage 6.5 audit): this is the pipeline's only
+        # mutable state, updated from multiple to_thread workers. The
+        # unlocked read-modify-write was measured de-facto atomic under
+        # CPython 3.11's GIL (0 lost updates in 400k contended attempts;
+        # the eval breaker cannot fire inside a straight-line statement)
+        # -- but that is an interpreter implementation detail, not a
+        # contract, so the update is locked anyway and an update counter
+        # makes the accounting testable exactly.
         self._rerank_ms_per_passage: float | None = None
+        self._rerank_cost_lock = threading.Lock()
+        self.rerank_cost_updates = 0
 
     _EWMA_ALPHA = 0.3
+
+    def _update_rerank_cost(self, per_passage: float) -> None:
+        with self._rerank_cost_lock:
+            if self._rerank_ms_per_passage is None:
+                self._rerank_ms_per_passage = per_passage
+            else:
+                self._rerank_ms_per_passage = (
+                    self._EWMA_ALPHA * per_passage
+                    + (1 - self._EWMA_ALPHA) * self._rerank_ms_per_passage
+                )
+            self.rerank_cost_updates += 1
+
+    def _read_rerank_cost(self) -> float | None:
+        with self._rerank_cost_lock:
+            return self._rerank_ms_per_passage
 
     def _rerank_with_budget(
         self, query: str, fused: list[tuple[str, float]]
@@ -134,9 +161,9 @@ class HybridPipeline:
             batch = fused[idx:idx + micro_batch]
             if self.rerank_budget_ms is not None:
                 elapsed_ms = (time.perf_counter() - t0) * 1000.0
+                known_cost = self._read_rerank_cost()
                 predicted_ms = (
-                    self._rerank_ms_per_passage * len(batch)
-                    if self._rerank_ms_per_passage is not None else 0.0
+                    known_cost * len(batch) if known_cost is not None else 0.0
                 )
                 if elapsed_ms + predicted_ms >= self.rerank_budget_ms:
                     break
@@ -145,14 +172,7 @@ class HybridPipeline:
                 query, [self.chunk_texts[cid] for cid, _ in batch]
             )
             batch_ms = (time.perf_counter() - batch_t0) * 1000.0
-            per_passage = batch_ms / len(batch)
-            if self._rerank_ms_per_passage is None:
-                self._rerank_ms_per_passage = per_passage
-            else:
-                self._rerank_ms_per_passage = (
-                    self._EWMA_ALPHA * per_passage
-                    + (1 - self._EWMA_ALPHA) * self._rerank_ms_per_passage
-                )
+            self._update_rerank_cost(batch_ms / len(batch))
             scored.extend(
                 (cid, float(s)) for (cid, _), s in zip(batch, batch_scores)
             )

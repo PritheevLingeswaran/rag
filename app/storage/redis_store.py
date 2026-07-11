@@ -57,7 +57,13 @@ class RedisStore:
             redis_url, decode_responses=False, socket_timeout=2.0,
             socket_connect_timeout=2.0,
         )
+        # All scripts registered here, not lazily: a lazy hasattr-guarded
+        # registration was a (benign) check-then-act under threads
+        # (Stage 6.5 audit). Registration is local hashing, no network.
         self._rate_limit = self._client.register_script(_RATE_LIMIT_LUA)
+        self._bounded_incr_script = self._client.register_script(
+            self._BOUNDED_INCR_LUA
+        )
 
     def ping(self) -> bool:
         try:
@@ -102,10 +108,6 @@ class RedisStore:
         first increment. Returns the post-increment value, or None when
         Redis is unreachable (caller decides the fallback policy)."""
         try:
-            if not hasattr(self, "_bounded_incr_script"):
-                self._bounded_incr_script = self._client.register_script(
-                    self._BOUNDED_INCR_LUA
-                )
             value = self._bounded_incr_script(
                 keys=[f"{self.ns}:ctr:{key}"], args=[ttl_s]
             )
