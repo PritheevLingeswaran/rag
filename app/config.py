@@ -45,6 +45,27 @@ class Settings(BaseSettings):
     database_url: str | None = None
     redis_url: str | None = None
     index_root: str = "indexes"
+
+    # Retrieval defaults, set from the CPU-THROTTLED (0.1 CPU, 512MB)
+    # load test in docs/loadtest_stage4.md -- NOT from laptop numbers.
+    # Measured there: RRF-only retrieval floor ~500ms p50, rerank cost
+    # ~700ms PER PASSAGE at 0.1 CPU (vs ~65ms/passage unthrottled).
+    #
+    # rerank_depth=10 is the candidate ceiling; the adaptive budget
+    # governs how much of it actually runs. rerank_budget_ms=700 means:
+    # on capable hosts (~65ms/passage) depth 10 fully reranks (~650ms);
+    # on 0.1-CPU hosts the EWMA cost predictor sees one micro-batch
+    # (5 x ~700ms = 3.5s) over budget and serves RRF order instead
+    # (explicit rerank_status='skipped_budget' on the response).
+    rerank_depth: int = 10
+    rerank_budget_ms: float = 700.0
+
+    # LLM generation (Stage 4). No key => the service serves the explicit
+    # 'degraded_no_llm' extractive path rather than failing to boot.
+    gemini_api_key: str | None = None
+    llm_model: str = "gemini-2.5-flash-lite"
+    llm_timeout_s: float = 20.0
+    llm_max_output_tokens: int = 1024
     log_level: Literal[
         "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
     ] = "INFO"

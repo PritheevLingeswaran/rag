@@ -149,6 +149,12 @@ class OnnxReranker:
         self._tokenizer.enable_truncation(max_length=max_length)
         self._micro_batch = micro_batch
 
+    @property
+    def micro_batch(self) -> int:
+        """Batch granularity; the hybrid pipeline's budget check runs
+        between micro-batches, so this is also the budget's resolution."""
+        return self._micro_batch
+
     def score(self, query: str, passages: list[str]) -> np.ndarray:
         """Relevance logit for each (query, passage) pair; higher = better."""
         if not passages:

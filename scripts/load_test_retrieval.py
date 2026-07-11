@@ -73,8 +73,7 @@ def english_corpus(n_chunks: int, seed: int = 42) -> list[tuple[str, str]]:
     return docs
 
 
-def build_pipeline(n_chunks: int, style: str,
-                   rerank_depth: int) -> tuple[HybridPipeline, list[str]]:
+def build_components(n_chunks: int, style: str):
     if style == "worstcase":
         corpus = synth_corpus(n_chunks)
     elif style == "english":
@@ -92,14 +91,24 @@ def build_pipeline(n_chunks: int, style: str,
     del vectors
 
     embedder, reranker = load_onnx_models()
-    pipeline = HybridPipeline(bm25, dense, embedder, reranker, texts,
-                              rerank_depth=rerank_depth,
-                              final_top_k=min(10, rerank_depth))
 
     q_rng = random.Random(42)
     sample = q_rng.sample(corpus, 500)
     queries = [" ".join(text.split()[:6]) for _, text in sample]
-    return pipeline, queries
+    return (bm25, dense, embedder, reranker, texts), queries
+
+
+def make_pipeline(components, rerank_depth: int) -> HybridPipeline:
+    bm25, dense, embedder, reranker, texts = components
+    return HybridPipeline(bm25, dense, embedder, reranker, texts,
+                          rerank_depth=rerank_depth,
+                          final_top_k=min(10, rerank_depth) or 10)
+
+
+def build_pipeline(n_chunks: int, style: str,
+                   rerank_depth: int) -> tuple[HybridPipeline, list[str]]:
+    components, queries = build_components(n_chunks, style)
+    return make_pipeline(components, rerank_depth), queries
 
 
 def percentile(values: list[float], pct: float) -> float:
@@ -146,31 +155,37 @@ def main() -> int:
     parser.add_argument("--warmup", type=int, default=10)
     parser.add_argument("--style", choices=["worstcase", "english"],
                         default="english")
-    parser.add_argument("--rerank-depth", type=int, default=20)
+    parser.add_argument("--rerank-depth", type=str, default="20",
+                        help="comma-separated depths to sweep; 0 = RRF only")
     parser.add_argument("--json", type=Path, default=None)
     args = parser.parse_args()
     levels = [int(x) for x in args.concurrency.split(",")]
+    depths = [int(x) for x in args.rerank_depth.split(",")]
 
-    print(f"building pipeline over {args.chunks} chunks "
-          f"(style={args.style}, rerank_depth={args.rerank_depth}) ...")
+    print(f"building components over {args.chunks} chunks "
+          f"(style={args.style}) ...")
     t0 = time.perf_counter()
-    pipeline, queries = build_pipeline(args.chunks, args.style,
-                                       args.rerank_depth)
-    print(f"build took {time.perf_counter() - t0:.1f}s; warmup ...")
-    for q in queries[:args.warmup]:
-        pipeline.run(q)
+    components, queries = build_components(args.chunks, args.style)
+    print(f"build took {time.perf_counter() - t0:.1f}s")
 
     results = []
-    header = (f"{'conc':>4} {'reqs':>5} {'p50':>8} {'p95':>8} {'p99':>8} "
-              f"{'mean':>8} {'max':>8} {'rps':>7}")
+    header = (f"{'depth':>5} {'conc':>4} {'reqs':>5} {'p50':>8} {'p95':>8} "
+              f"{'p99':>8} {'mean':>8} {'max':>8} {'rps':>7}")
     print(header)
     print("-" * len(header))
-    for level in levels:
-        r = run_level(pipeline, queries, args.requests, level)
-        results.append(r)
-        print(f"{r['concurrency']:>4} {r['requests']:>5} {r['p50_ms']:>7.1f}ms "
-              f"{r['p95_ms']:>7.1f}ms {r['p99_ms']:>7.1f}ms {r['mean_ms']:>7.1f}ms "
-              f"{r['max_ms']:>7.1f}ms {r['throughput_rps']:>7.2f}")
+    pipeline = None
+    for depth in depths:
+        pipeline = make_pipeline(components, depth)
+        for q in queries[:args.warmup]:
+            pipeline.run(q)
+        for level in levels:
+            r = run_level(pipeline, queries, args.requests, level)
+            r["rerank_depth"] = depth
+            results.append(r)
+            print(f"{depth:>5} {r['concurrency']:>4} {r['requests']:>5} "
+                  f"{r['p50_ms']:>7.1f}ms {r['p95_ms']:>7.1f}ms "
+                  f"{r['p99_ms']:>7.1f}ms {r['mean_ms']:>7.1f}ms "
+                  f"{r['max_ms']:>7.1f}ms {r['throughput_rps']:>7.2f}")
 
     if args.json:
         args.json.write_text(json.dumps({
@@ -178,10 +193,10 @@ def main() -> int:
             "command": " ".join(sys.argv),
             "chunks": args.chunks,
             "corpus_style": args.style,
+            "rerank_depths": depths,
             "pipeline_config": {
                 "bm25_top_n": pipeline.bm25_top_n,
                 "dense_top_n": pipeline.dense_top_n,
-                "rerank_depth": pipeline.rerank_depth,
                 "final_top_k": pipeline.final_top_k,
             },
             "environment": {

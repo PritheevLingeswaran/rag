@@ -1,0 +1,120 @@
+{
+  "timestamp_utc": "2026-07-11T03:04:51.455021+00:00",
+  "command": "scripts/load_test_retrieval.py --chunks 50000 --requests 20 --warmup 3 --concurrency 1,4 --style english --rerank-depth 20,10,5,0 --json eval/results/loadtest_stage4_throttled.json",
+  "chunks": 50000,
+  "corpus_style": "english",
+  "rerank_depths": [
+    20,
+    10,
+    5,
+    0
+  ],
+  "pipeline_config": {
+    "bm25_top_n": 30,
+    "dense_top_n": 30,
+    "final_top_k": 10
+  },
+  "environment": {
+    "python": "3.11.15",
+    "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.41",
+    "cpu_count": 8
+  },
+  "levels": [
+    {
+      "concurrency": 1,
+      "requests": 20,
+      "p50_ms": 14104.0,
+      "p95_ms": 15997.6,
+      "p99_ms": 16197.1,
+      "mean_ms": 14214.9,
+      "max_ms": 16197.1,
+      "throughput_rps": 0.07,
+      "wall_s": 284.4,
+      "rerank_depth": 20
+    },
+    {
+      "concurrency": 4,
+      "requests": 20,
+      "p50_ms": 76696.1,
+      "p95_ms": 100008.8,
+      "p99_ms": 118199.4,
+      "mean_ms": 77860.3,
+      "max_ms": 118199.4,
+      "throughput_rps": 0.05,
+      "wall_s": 400.3,
+      "rerank_depth": 20
+    },
+    {
+      "concurrency": 1,
+      "requests": 20,
+      "p50_ms": 7606.4,
+      "p95_ms": 8497.9,
+      "p99_ms": 8498.3,
+      "mean_ms": 7779.7,
+      "max_ms": 8498.3,
+      "throughput_rps": 0.13,
+      "wall_s": 155.6,
+      "rerank_depth": 10
+    },
+    {
+      "concurrency": 4,
+      "requests": 20,
+      "p50_ms": 39700.5,
+      "p95_ms": 44396.4,
+      "p99_ms": 48900.9,
+      "mean_ms": 38589.8,
+      "max_ms": 48900.9,
+      "throughput_rps": 0.1,
+      "wall_s": 197.7,
+      "rerank_depth": 10
+    },
+    {
+      "concurrency": 1,
+      "requests": 20,
+      "p50_ms": 4197.9,
+      "p95_ms": 4696.5,
+      "p99_ms": 4898.4,
+      "mean_ms": 4189.6,
+      "max_ms": 4898.4,
+      "throughput_rps": 0.24,
+      "wall_s": 83.8,
+      "rerank_depth": 5
+    },
+    {
+      "concurrency": 4,
+      "requests": 20,
+      "p50_ms": 18901.3,
+      "p95_ms": 26794.5,
+      "p99_ms": 27196.9,
+      "mean_ms": 19884.5,
+      "max_ms": 27196.9,
+      "throughput_rps": 0.19,
+      "wall_s": 102.9,
+      "rerank_depth": 5
+    },
+    {
+      "concurrency": 1,
+      "requests": 20,
+      "p50_ms": 499.8,
+      "p95_ms": 595.0,
+      "p99_ms": 595.2,
+      "mean_ms": 509.6,
+      "max_ms": 595.2,
+      "throughput_rps": 1.96,
+      "wall_s": 10.2,
+      "rerank_depth": 0
+    },
+    {
+      "concurrency": 4,
+      "requests": 20,
+      "p50_ms": 2597.5,
+      "p95_ms": 3300.0,
+      "p99_ms": 3799.1,
+      "mean_ms": 2509.6,
+      "max_ms": 3799.1,
+      "throughput_rps": 1.54,
+      "wall_s": 13.0,
+      "rerank_depth": 0
+    }
+  ]
+}
