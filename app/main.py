@@ -172,11 +172,19 @@ def create_app() -> FastAPI:
         return response
 
     @app.get("/metrics", include_in_schema=False)
-    def metrics():
+    def metrics(request: Request):
+        import hmac
+
         from starlette.responses import Response
 
         from app.observability import render_metrics
 
+        token = get_settings().metrics_token
+        if token:
+            provided = request.headers.get("authorization", "")
+            if not hmac.compare_digest(provided, f"Bearer {token}"):
+                return JSONResponse(status_code=401,
+                                    content={"error": "unauthorized"})
         payload, content_type = render_metrics()
         return Response(content=payload, media_type=content_type)
 

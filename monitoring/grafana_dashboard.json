@@ -1,0 +1,72 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "type": "datasource",
+      "pluginId": "prometheus"
+    }
+  ],
+  "title": "ragp — Hybrid RAG Platform",
+  "uid": "ragp-main",
+  "schemaVersion": 39,
+  "time": {"from": "now-6h", "to": "now"},
+  "refresh": "1m",
+  "panels": [
+    {
+      "id": 1, "type": "timeseries", "title": "Requests & shed (per min)",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "sum(rate(ragp_http_request_duration_seconds_count{path=\"/v1/query\"}[5m])) by (status) * 60", "legendFormat": "{{status}}"},
+        {"expr": "sum(rate(ragp_admission_rejected_total[5m])) * 60", "legendFormat": "shed 503"}
+      ]
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "Latency p50 / p95 (/v1/query)",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "targets": [
+        {"expr": "histogram_quantile(0.50, sum(rate(ragp_http_request_duration_seconds_bucket{path=\"/v1/query\"}[10m])) by (le))", "legendFormat": "p50"},
+        {"expr": "histogram_quantile(0.95, sum(rate(ragp_http_request_duration_seconds_bucket{path=\"/v1/query\"}[10m])) by (le))", "legendFormat": "p95"}
+      ]
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "Errors by type (per min)",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "sum(rate(ragp_errors_total[5m])) by (type) * 60", "legendFormat": "{{type}}"}
+      ]
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "Cache hit ratio",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "max": 1}, "overrides": []},
+      "targets": [
+        {"expr": "sum(rate(ragp_cache_requests_total{result=\"hit\"}[15m])) / sum(rate(ragp_cache_requests_total{result=~\"hit|miss\"}[15m]))", "legendFormat": "hit ratio"}
+      ]
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "Retrieval stages p95 + rerank outcomes",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum(rate(ragp_retrieval_duration_seconds_bucket[10m])) by (le, stage))", "legendFormat": "p95 {{stage}}"},
+        {"expr": "sum(rate(ragp_rerank_status_total[5m])) by (status) * 60", "legendFormat": "rerank {{status}}/min"}
+      ]
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "LLM quota: throttles & provider 429s (per hour)",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "sum(increase(ragp_quota_throttled_total[1h])) by (reason)", "legendFormat": "throttled {{reason}}"},
+        {"expr": "sum(increase(ragp_errors_total{type=\"llm_quota_429\"}[1h]))", "legendFormat": "provider 429"},
+        {"expr": "sum(increase(ragp_llm_requests_total{outcome=\"ok\"}[1h]))", "legendFormat": "llm ok"}
+      ]
+    }
+  ]
+}

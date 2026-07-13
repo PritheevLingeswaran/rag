@@ -99,6 +99,12 @@ class Settings(BaseSettings):
     redis_daily_command_budget: int = 16_129
     postgres_storage_limit_mb: int = 500
 
+    # Stage 11: when set, GET /metrics requires
+    # 'Authorization: Bearer <token>' (Grafana Cloud scraper supports
+    # this). Unset => /metrics is open (fine locally, not on a public
+    # URL: operational metrics are recon material).
+    metrics_token: str | None = None
+
     @property
     def cors_origin_list(self) -> list[str]:
         if not self.cors_origins:

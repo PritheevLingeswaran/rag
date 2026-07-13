@@ -1,0 +1,133 @@
+# promtool unit tests for alerts.yml: proves each alert FIRES past its
+# threshold and (for the ratio-based ones) stays QUIET below it.
+# Run: docker run --rm -v "$PWD/monitoring:/m" --entrypoint /bin/promtool \
+#        prom/prometheus test rules /m/alerts_test.yml
+rule_files:
+  - alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  # ---- UnhandledExceptions: fires on the first one ----
+  - interval: 1m
+    input_series:
+      - series: 'ragp_errors_total{type="unhandled"}'
+        values: '0 0 0 1 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: UnhandledExceptions
+        exp_alerts:
+          - exp_labels: {severity: page}
+            exp_annotations:
+              summary: "unhandled exception(s) in the last 10m — this is a bug"
+
+  # ---- UnhandledExceptions: quiet at zero ----
+  - interval: 1m
+    input_series:
+      - series: 'ragp_errors_total{type="unhandled"}'
+        values: '0x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: UnhandledExceptions
+        exp_alerts: []
+
+  # ---- ErrorRateHigh: 10% hard-error rate fires after 10m ----
+  - interval: 1m
+    input_series:
+      - series: 'ragp_errors_total{type="llm_server_error"}'
+        values: '0+1x30'
+      - series: 'ragp_http_request_duration_seconds_count{path="/v1/query",method="POST",status="200"}'
+        values: '0+10x30'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: ErrorRateHigh
+        exp_alerts:
+          - exp_labels: {severity: page}
+            exp_annotations:
+              summary: "hard error rate > 5% of /v1/query for 10m"
+
+  # ---- ErrorRateHigh: quiet at 1% ----
+  - interval: 1m
+    input_series:
+      - series: 'ragp_errors_total{type="llm_server_error"}'
+        values: '0+1x30'
+      - series: 'ragp_http_request_duration_seconds_count{path="/v1/query",method="POST",status="200"}'
+        values: '0+100x30'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: ErrorRateHigh
+        exp_alerts: []
+
+  # ---- P95LatencyBeyondEnvelope: 90% of requests in (2,5]s => p95≈4.8s ----
+  - interval: 1m
+    input_series:
+      - series: 'ragp_http_request_duration_seconds_bucket{path="/v1/query",le="2.0"}'
+        values: '0+1x30'
+      - series: 'ragp_http_request_duration_seconds_bucket{path="/v1/query",le="3.5"}'
+        values: '0+1x30'
+      - series: 'ragp_http_request_duration_seconds_bucket{path="/v1/query",le="5.0"}'
+        values: '0+10x30'
+      - series: 'ragp_http_request_duration_seconds_bucket{path="/v1/query",le="+Inf"}'
+        values: '0+10x30'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: P95LatencyBeyondEnvelope
+        exp_alerts:
+          - exp_labels: {severity: page}
+            exp_annotations:
+              summary: "p95 > 4s for 10m — beyond the measured 3.5s capacity envelope"
+
+  # ---- P95LatencyBeyondEnvelope: quiet when everything is sub-2s ----
+  - interval: 1m
+    input_series:
+      - series: 'ragp_http_request_duration_seconds_bucket{path="/v1/query",le="2.0"}'
+        values: '0+10x30'
+      - series: 'ragp_http_request_duration_seconds_bucket{path="/v1/query",le="3.5"}'
+        values: '0+10x30'
+      - series: 'ragp_http_request_duration_seconds_bucket{path="/v1/query",le="5.0"}'
+        values: '0+10x30'
+      - series: 'ragp_http_request_duration_seconds_bucket{path="/v1/query",le="+Inf"}'
+        values: '0+10x30'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: P95LatencyBeyondEnvelope
+        exp_alerts: []
+
+  # ---- QuotaThrottleSustained: 2 throttles/min => 120/h > 60 ----
+  - interval: 1m
+    input_series:
+      - series: 'ragp_quota_throttled_total{reason="rpd_exhausted"}'
+        values: '0+2x70'
+    alert_rule_test:
+      - eval_time: 65m
+        alertname: QuotaThrottleSustained
+        exp_alerts:
+          - exp_labels: {severity: warn}
+            exp_annotations:
+              summary: "LLM budget exhausting: >60 throttled answers in 1h"
+
+  # ---- ProviderQuotaRejections: 3 provider 429s in 15m ----
+  - interval: 1m
+    input_series:
+      - series: 'ragp_errors_total{type="llm_quota_429"}'
+        values: '0 1 2 3 3 3 3 3 3 3'
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: ProviderQuotaRejections
+        exp_alerts:
+          - exp_labels: {severity: warn}
+            exp_annotations:
+              summary: "provider 429s despite quota guard — check for other consumers"
+
+  # ---- SheddingSustained: 10 rejections/min for 30m ----
+  - interval: 1m
+    input_series:
+      - series: 'ragp_admission_rejected_total'
+        values: '0+10x40'
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: SheddingSustained
+        exp_alerts:
+          - exp_labels: {severity: warn}
+            exp_annotations:
+              summary: "admission shedding >6 req/min for 15m — over measured capacity"

@@ -1,0 +1,79 @@
+# Prometheus/Grafana alert rules (Stage 11). Every threshold is tied to
+# a number MEASURED in this project, with the source stage cited.
+# Machine-verified: monitoring/alerts_test.yml (promtool test rules)
+# proves each alert fires when its threshold is crossed and stays quiet
+# below it.
+groups:
+  - name: ragp
+    rules:
+      # Any unhandled exception is a bug (Stage 5 hardening: the global
+      # handler catches these; they should be ~0 forever). >0 in 10m
+      # pages -- there is no acceptable background rate.
+      - alert: UnhandledExceptions
+        expr: sum(increase(ragp_errors_total{type="unhandled"}[10m])) > 0
+        for: 0m
+        labels: {severity: page}
+        annotations:
+          summary: "unhandled exception(s) in the last 10m — this is a bug"
+
+      # Error-rate: hard API failures (LLM 5xx/malformed after retries)
+      # over total requests > 5% for 10m. Normal operation measured 0%
+      # (Stage 7.5: 416/416 served); 5% sustained means a provider
+      # incident or our config broke.
+      - alert: ErrorRateHigh
+        expr: >
+          sum(rate(ragp_errors_total{type=~"llm_server_error|llm_malformed|llm_auth"}[10m]))
+          /
+          sum(rate(ragp_http_request_duration_seconds_count{path="/v1/query"}[10m]))
+          > 0.05
+        for: 10m
+        labels: {severity: page}
+        annotations:
+          summary: "hard error rate > 5% of /v1/query for 10m"
+
+      # p95 latency beyond the MEASURED operating envelope: admitted
+      # p95 at full capacity on 0.1 CPU is ~3.5s (Stage 5, queue depth
+      # 4). Sustained p95 above 4s means we are outside anything we
+      # measured -- host degradation or a regression, not normal load
+      # (normal load sheds via 503 instead of stretching latency).
+      - alert: P95LatencyBeyondEnvelope
+        expr: >
+          histogram_quantile(0.95,
+            sum(rate(ragp_http_request_duration_seconds_bucket{path="/v1/query"}[10m])) by (le))
+          > 4
+        for: 10m
+        labels: {severity: page}
+        annotations:
+          summary: "p95 > 4s for 10m — beyond the measured 3.5s capacity envelope"
+
+      # Quota throttling is DESIGNED behavior (Stage 4.5), so a few
+      # throttles are noise. Sustained throttling -- more than 60
+      # degraded answers in an hour (~1/min against the 13 RPM budget)
+      # -- means real users are living on the degraded path: time to
+      # consider caching/tier changes, not an incident page.
+      - alert: QuotaThrottleSustained
+        expr: sum(increase(ragp_quota_throttled_total[1h])) > 60
+        for: 0m
+        labels: {severity: warn}
+        annotations:
+          summary: "LLM budget exhausting: >60 throttled answers in 1h"
+
+      # Provider 429s despite our proactive accounting: the Stage 4.5
+      # operator contract says investigate (shared project quota or
+      # accounting slip). 3+ in 15m is a pattern, not a blip.
+      - alert: ProviderQuotaRejections
+        expr: sum(increase(ragp_errors_total{type="llm_quota_429"}[15m])) >= 3
+        for: 0m
+        labels: {severity: warn}
+        annotations:
+          summary: "provider 429s despite quota guard — check for other consumers"
+
+      # Sustained load shedding: >6/min for 15m means offered load has
+      # exceeded the measured ~2 rps / 6-client capacity (Stage 5) for
+      # a quarter hour straight -- capacity planning, not a blip.
+      - alert: SheddingSustained
+        expr: sum(rate(ragp_admission_rejected_total[15m])) * 60 > 6
+        for: 15m
+        labels: {severity: warn}
+        annotations:
+          summary: "admission shedding >6 req/min for 15m — over measured capacity"

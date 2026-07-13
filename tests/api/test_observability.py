@@ -71,6 +71,27 @@ def counter_value(counter, **labels) -> float:
         return 0.0
 
 
+def test_metrics_token_auth_when_configured(monkeypatch):
+    from app.config import get_settings
+
+    monkeypatch.setenv("METRICS_TOKEN", "scrape-secret")
+    get_settings.cache_clear()
+    app = create_app()
+    app.state.service = StubService()
+    with TestClient(app) as client:
+        assert client.get("/metrics").status_code == 401
+        assert client.get(
+            "/metrics", headers={"Authorization": "Bearer wrong"}
+        ).status_code == 401
+        ok = client.get(
+            "/metrics", headers={"Authorization": "Bearer scrape-secret"}
+        )
+        assert ok.status_code == 200
+        assert "ragp_" in ok.text
+    monkeypatch.delenv("METRICS_TOKEN")
+    get_settings.cache_clear()
+
+
 def test_metrics_endpoint_exposes_prometheus_format(client):
     resp = client.get("/metrics")
     assert resp.status_code == 200
