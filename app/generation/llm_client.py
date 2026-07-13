@@ -48,7 +48,7 @@ class LLMClient(Protocol):
 
 
 class GeminiClient:
-    def __init__(self, api_key: str, model: str = "gemini-2.5-flash-lite",
+    def __init__(self, api_key: str, model: str = "gemini-3.1-flash-lite",
                  timeout_s: float = 20.0, max_output_tokens: int = 1024,
                  base_url: str = GEMINI_BASE_URL,
                  transport: httpx.BaseTransport | None = None) -> None:

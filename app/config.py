@@ -63,7 +63,7 @@ class Settings(BaseSettings):
     # LLM generation (Stage 4). No key => the service serves the explicit
     # 'degraded_no_llm' extractive path rather than failing to boot.
     gemini_api_key: str | None = None
-    llm_model: str = "gemini-2.5-flash-lite"
+    llm_model: str = "gemini-3.1-flash-lite"
     llm_timeout_s: float = 20.0
     llm_max_output_tokens: int = 1024
 

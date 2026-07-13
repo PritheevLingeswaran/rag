@@ -48,9 +48,9 @@ def make_guard(clock=None, margin=0.9) -> QuotaGuard:
 def test_limits_loaded_from_stage25_file():
     assert LIMITS.rpm == 15
     assert LIMITS.rpd == 1000
-    primary = load_model_limits("gemini-3-flash")
-    assert primary.rpm == 10
-    assert primary.rpd == 1500
+    primary = load_model_limits("gemini-3.1-flash-lite")
+    assert primary.rpm == 15
+    assert primary.rpd == 1000
 
 
 def test_unknown_model_refuses_to_guess():
