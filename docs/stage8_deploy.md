@@ -1,8 +1,11 @@
 # Stage 8 — Live Deployment (Render free tier)
 
-Status: **container proven locally under production constraints;
-account-side steps are a 20-minute operator runbook below.** Creating
-accounts and handling credentials is deliberately not automated.
+Status: **DEPLOYED AND DRILLED 2026-07-13.** Live at
+https://ragp-pwf2.onrender.com — HTTPS `/health` 200 through Render's
+health gate, auth enforced (401 keyless), `/v1/query` serving cited
+answers. Rollback drill performed on the live service (timestamps
+below). Creating accounts and handling credentials was deliberately
+not automated.
 
 ## What is verified (evidence in this repo / report)
 
@@ -80,7 +83,31 @@ retrieval state.
 the prior deploy → confirm `/health` 200 and `/openapi.json` shows the
 prior version string. Record the timestamps in this file.
 
+**Drill record (performed 2026-07-13, all times UTC):**
+
+| Step | Time | Evidence |
+|---|---|---|
+| Trivial commit pushed (`3781272`, 0.1.0 → 0.1.1) | 10:05:06Z | `git push` |
+| New deploy live (through Render health gate) | 10:06:21Z | `/openapi.json` → 0.1.1; `/health` 200 |
+| Dashboard Rollback clicked (to `b62789b` / 0.1.0) | ~10:13Z | operator |
+| Rollback live, version reverted | 10:13:08Z | `/openapi.json` → 0.1.0; `/health` 200 `{"status":"ok","version":"0.1.0","environment":"production"}` |
+
+Deploy of the trivial commit took ~75 s (Docker layer cache: only the
+source `COPY` layer rebuilt, baked models stayed cached); rollback
+flip took under a minute of instance boot. Pushing this record
+re-deploys `master` (autoDeploy), returning the service to 0.1.1.
+
 ## Remaining for the operator (cannot be done from this machine)
 
-Accounts + secrets + DNS (steps 1–7) and executing the rollback drill
-on the live service. Everything code-side is committed and verified.
+Done 2026-07-13: accounts, secrets (Render env tab), deploy, HTTPS
+health verification, rollback drill. Still open: keepalive monitor
+(step 7, UptimeRobot GET /health every 10 min) if not yet created,
+and the Gemini path is serving `degraded_llm_malformed` — the LLM
+call is not producing parseable output with the current key; the
+extractive fallback is serving correctly meanwhile. Investigate
+post-Stage 8.
+
+Note (migrations): port 5432 was blocked on the operator network, so
+`0001_init.sql` was applied via Neon's SQL-over-HTTP endpoint in one
+transaction, including the `schema_migrations` bookkeeping row —
+`python -m app.ingest.cli migrate` sees it as applied.
