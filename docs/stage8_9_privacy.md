@@ -31,9 +31,13 @@ test that fails if anyone wires it without noticing.
 
 - Render's edge logs requests (incl. IP) under Render's own policy —
   disclosed rather than pretended away; the app-side log is silent.
-- "Published and linked from the live app": the endpoint ships in the
-  production image and is verified there; the public URL half remains
-  gated on the Stage 8 account handoff, same blocker, same runbook.
+- "Published and linked from the live app": ~~gated on the Stage 8
+  account handoff~~ — **closed 2026-07-16**: `GET
+  https://ragp-pwf2.onrender.com/privacy` → 200 (full policy, 2,871
+  bytes) on the live service, and the live `/openapi.json` description
+  links it ("Privacy policy: [/privacy](/privacy) — no accounts,
+  queries never stored tied to identity"). Conformance tests re-run
+  same day: 5/5 passing locally and within CI's 206 on master.
 - Policy contact is "the project repository's issue tracker" — swap in
   a preferred contact channel if you want one.
 
