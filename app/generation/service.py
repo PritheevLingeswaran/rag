@@ -13,6 +13,7 @@ covered by a test in tests/generation/test_service.py):
 | LLM timeout                   | degraded_timeout            | extractive answer           |
 | LLM 5xx / network (after 1 retry) | degraded_llm_error      | extractive answer           |
 | LLM malformed/empty response  | degraded_llm_malformed      | extractive answer           |
+| LLM config rejected (404 bad model, 400) | degraded_llm_config | extractive answer (ERROR log: our config bug, fix llm_model) |
 | LLM auth failure              | degraded_llm_auth           | extractive answer (and an ERROR log: this is a config bug, not weather) |
 | no LLM configured             | degraded_no_llm             | extractive answer           |
 | nothing retrieved             | no_results                  | explicit "no relevant documents" |
@@ -51,6 +52,7 @@ from app.core.grounding import split_sentences
 from app.core.hybrid import HybridPipeline, RetrievedChunk
 from app.errors import (
     LLMAuthError,
+    LLMConfigError,
     LLMMalformedError,
     LLMQuotaError,
     LLMServerError,
@@ -230,6 +232,12 @@ class GenerationService:
             logger.error("llm_malformed_response", error=str(exc))
             return self._degraded(query, context, rerank_info.status,
                                   "degraded_llm_malformed")
+        except LLMConfigError as exc:
+            LLM_REQUESTS.labels(outcome="config").inc()
+            ERRORS.labels(type="llm_config").inc()
+            logger.error("llm_config_rejected_check_llm_model", error=str(exc))
+            return self._degraded(query, context, rerank_info.status,
+                                  "degraded_llm_config")
         except LLMAuthError as exc:
             LLM_REQUESTS.labels(outcome="auth").inc()
             ERRORS.labels(type="llm_auth").inc()

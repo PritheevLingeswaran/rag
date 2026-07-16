@@ -23,7 +23,7 @@ test that fails if anyone wires it without noticing.
 | "logs never contain query text, answers, or IP addresses written by the app" | every `logger.*` call in the serving path passes only timings/statuses/counts (`request_completed`, `retrieval_completed`, `generation_completed`); the single client-address log is the dev-only anonymous branch, unreachable in production (keys required to boot) | `test_policy_claim_no_query_text_or_ip_in_app_logs` |
 | app writes no per-request IP logs | `--no-access-log` in the production CMD (change made this stage — uvicorn's default access log DID log IP+path, the one real gap the audit found) | `test_policy_claim_access_log_disabled_in_image` + live check: 2 requests to the prod container produced **0** access-log lines |
 | cached responses ≤ 1 hour, not linked to you | `cache_key = sha256(normalized query)` — no client id in key or value; `cache_ttl_s = 3600` | `test_policy_claim_cache_ttl_one_hour`; cache code in `app/api/query.py` |
-| rate-limit counters keyed to a truncated key tag, ≤ 25 h | `client_id = f"key:{key[:4]}...{len}"`; TTLs 60 s / 86 400+3 600 s | `app/api/deps.py`, `app/api/query.py` |
+| rate-limit counters keyed to a truncated key tag, ≤ 25 h | `client_id = f"key:{sha256(key)[:12]}"` (truncated digest — non-reversible, and collision-free unlike the earlier `key[:4]` prefix); TTLs 60 s / 86 400+3 600 s | `app/api/deps.py`, `app/api/query.py` |
 | no user data in metrics | closed-set labels only | Stage 6 test (`test_http_request_duration_labels_use_route_template`) |
 | Gemini disclosure | queries + snippets go to Google only when `GEMINI_API_KEY` set; free-tier "Google may use content" stated plainly in the policy | `app/generation/llm_client.py` is the only egress |
 

@@ -45,9 +45,13 @@ def build_hybrid_from_corpus(
     **pipeline_kwargs,
 ) -> HybridPipeline:
     """Build the full hybrid pipeline from a corpus file: BM25 + freshly
-    embedded dense index + cross-encoder. Embedding happens here (fine for
-    the 60-chunk eval corpus; production serving loads a prebuilt FAISS
-    version from Stage 2's FaissStore instead).
+    embedded dense index + cross-encoder. Embedding happens here -- and
+    this IS the production boot path today: the corpus ships in the image
+    and is re-embedded at startup (~46s at 0.1 CPU for 60 chunks). The
+    prebuilt-FaissStore load path (Stage 2 machinery) is the documented
+    upgrade once the corpus outgrows boot-time embedding (10k+ chunks);
+    it is NOT wired into serving yet, and needs object storage first --
+    Render free disk is ephemeral (see Dockerfile note).
 
     rerank_depth / rerank_budget_ms default from Settings (which were set
     from the throttled load test); explicit kwargs override, which is how
@@ -99,6 +103,7 @@ def build_generation_pipeline(
     corpus_path: Path,
     cache_dir: str | None = None,
     alerts=None,
+    redis_store=None,
     **pipeline_kwargs,
 ) -> GenerationEvalAdapter:
     """Full serving path for eval: hybrid retrieval + GenerationService.
@@ -124,8 +129,11 @@ def build_generation_pipeline(
         )
         from app.generation.quota import QuotaGuard, load_model_limits
 
-        redis_store = None
-        if settings.redis_url:
+        # Reuse the caller's RedisStore when given (the app lifespan passes
+        # its command-budget-metered store, so quota accounting spends the
+        # Upstash allowance visibly and shares one connection pool). A
+        # fresh unmetered store is only for standalone use (eval harness).
+        if redis_store is None and settings.redis_url:
             from app.storage.redis_store import RedisStore
 
             redis_store = RedisStore(settings.redis_url)

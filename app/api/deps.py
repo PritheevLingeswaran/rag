@@ -26,7 +26,12 @@ def get_client_id(
     if keys:
         for key in keys:
             if hmac.compare_digest(provided, key):
-                return f"key:{key[:4]}...{len(key)}"
+                # Truncated digest, not a key prefix: two keys sharing
+                # their first characters must not share rate-limit/quota
+                # buckets. Still a non-reversible tag (privacy policy).
+                import hashlib
+
+                return f"key:{hashlib.sha256(key.encode()).hexdigest()[:12]}"
         ERRORS.labels(type="auth_failed").inc()
         raise HTTPException(status_code=401,
                             detail="missing or invalid API key")

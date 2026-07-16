@@ -79,7 +79,7 @@ QUOTA_THROTTLED = Counter(
 LLM_REQUESTS = Counter(
     "ragp_llm_requests_total",
     "LLM call outcomes",
-    ["outcome"],  # ok | quota_429 | timeout | server_error | malformed | auth
+    ["outcome"],  # ok | quota_429 | timeout | server_error | malformed | config | auth
 )
 
 RERANK_STATUS = Counter(

@@ -145,16 +145,27 @@ async def query(
             redis_store.cache_get, cache_key
         )
         if cached_raw is not None:
-            CACHE_REQUESTS.labels(result="hit").inc()
             import json as _json
 
-            payload = _json.loads(cached_raw)
-            payload["cached"] = True
-            payload["request_id"] = request_id
-            logger.info("request_completed", outcome="cache_hit",
-                        status=payload.get("status"))
-            return QueryResponse(**payload)
-        CACHE_REQUESTS.labels(result="miss").inc()
+            # A stale entry from a previous deploy may not fit the current
+            # response schema (extra='forbid'); that is a cache miss, not a
+            # 500 for the rest of the TTL.
+            try:
+                payload = _json.loads(cached_raw)
+                payload["cached"] = True
+                payload["request_id"] = request_id
+                cached_response = QueryResponse(**payload)
+            except Exception:
+                logger.warning("cache_entry_incompatible_treated_as_miss",
+                               key=cache_key)
+                cached_raw = None
+            else:
+                CACHE_REQUESTS.labels(result="hit").inc()
+                logger.info("request_completed", outcome="cache_hit",
+                            status=payload.get("status"))
+                return cached_response
+        if cached_raw is None:
+            CACHE_REQUESTS.labels(result="miss").inc()
     else:
         CACHE_REQUESTS.labels(result="bypass").inc()
 

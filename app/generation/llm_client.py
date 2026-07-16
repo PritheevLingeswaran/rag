@@ -23,6 +23,7 @@ import httpx
 
 from app.errors import (
     LLMAuthError,
+    LLMConfigError,
     LLMMalformedError,
     LLMQuotaError,
     LLMServerError,
@@ -104,8 +105,11 @@ class GeminiClient:
         if resp.status_code >= 500:
             raise LLMServerError(f"gemini server error: HTTP {resp.status_code}")
         if resp.status_code != 200:
-            raise LLMMalformedError(
-                f"unexpected gemini status {resp.status_code}: {resp.text[:200]}"
+            # Remaining 4xx (404 unknown/retired model, 400 bad request):
+            # OUR configuration is wrong, not Gemini's response shape.
+            raise LLMConfigError(
+                f"gemini rejected the request as configured (HTTP "
+                f"{resp.status_code}, model={self._model!r}): {resp.text[:200]}"
             )
 
         try:

@@ -88,6 +88,39 @@ def test_rpm_window_resets_next_minute():
     assert guard.try_acquire().allowed is True
 
 
+def test_rpm_denied_requests_do_not_burn_daily_budget():
+    """Regression (Bug 1): counting RPD before RPM let every RPM-denied
+    request consume a daily slot -- sustained over-RPM traffic drained
+    the whole day's budget in minutes. RPM-denied must leave RPD
+    untouched."""
+    clock = FakeClock()
+    guard = make_guard(clock)
+    # exhaust the minute, then hammer well past it
+    for _ in range(guard.enforced_rpm + 50):
+        guard.try_acquire()
+    # next minute: only enforced_rpm requests actually spent RPD, so
+    # nearly the whole day remains
+    clock.advance(60)
+    d = guard.try_acquire()
+    assert d.allowed is True
+    assert d.remaining_rpd == guard.enforced_rpd - guard.enforced_rpm - 1
+
+
+def test_local_counter_gc_never_evicts_daily_key():
+    """Regression (Bug 5): keep-last-N-sorted GC evicted the live :rpd:
+    key (sorts before :rpm:), resetting the day count mid-day."""
+    from app.generation.quota import _LocalCounters
+
+    counters = _LocalCounters()
+    day_key = "llmq:m:rpd:20260716"
+    for i in range(500):
+        counters.incr(day_key)
+    # flood with >1000 distinct per-minute keys to trigger GC
+    for minute in range(1100):
+        counters.incr(f"llmq:m:rpm:{29000000 + minute}")
+    assert counters.incr(day_key) == 501  # survived GC, not reset to 1
+
+
 # ---- RPD boundary ----
 
 def test_rpd_boundary_denies_with_retry_until_pacific_midnight():

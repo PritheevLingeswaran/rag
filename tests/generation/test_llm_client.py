@@ -6,6 +6,7 @@ import pytest
 
 from app.errors import (
     LLMAuthError,
+    LLMConfigError,
     LLMMalformedError,
     LLMQuotaError,
     LLMServerError,
@@ -82,6 +83,18 @@ def test_network_error_raises_server_error():
         raise httpx.ConnectError("refused")
     client = make_client(handler)
     with pytest.raises(LLMServerError):
+        client.generate("prompt")
+
+
+@pytest.mark.parametrize("status", [400, 404])
+def test_config_rejections_raise_config_error_not_malformed(status):
+    """A retired/unknown model id 404s; that is OUR config, not a
+    provider response-shape problem (regression: prod 404 surfaced as
+    degraded_llm_malformed and sent diagnosis the wrong way)."""
+    client = make_client(lambda req: httpx.Response(
+        status, json={"error": {"message": "model not found"}}
+    ))
+    with pytest.raises(LLMConfigError, match=str(status)):
         client.generate("prompt")
 
 

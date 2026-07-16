@@ -67,13 +67,17 @@ async def lifespan(app: FastAPI):
         from app.core.bootstrap import build_generation_pipeline
 
         adapter = build_generation_pipeline(Path(settings.corpus_path),
-                                            alerts=app.state.alerts)
+                                            alerts=app.state.alerts,
+                                            redis_store=app.state.redis_store)
         app.state.service = adapter._service
-        # Warmup: exercises the full path once so model sessions are hot
-        # and the rerank-budget EWMA is seeded before the first user
-        # request (otherwise the first request may overshoot the budget;
-        # see app/core/hybrid.py).
-        app.state.service.answer("warmup query to seed model sessions")
+        # Warmup: exercises retrieval once so model sessions are hot and
+        # the rerank-budget EWMA is seeded before the first user request
+        # (otherwise the first request may overshoot the budget; see
+        # app/core/hybrid.py). Deliberately retrieval-only: warming
+        # through service.answer() burned one real LLM call + RPD slot
+        # per boot and let a hanging provider delay readiness by the
+        # timeout x retry.
+        app.state.service.pipeline.retrieve("warmup query to seed model sessions")
         logger.info("pipeline_warmed")
 
     logger.info(

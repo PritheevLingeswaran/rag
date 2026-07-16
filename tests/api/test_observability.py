@@ -99,6 +99,21 @@ def test_metrics_endpoint_exposes_prometheus_format(client):
     assert "ragp_cache_requests_total" in resp.text
 
 
+def test_incompatible_cached_payload_is_a_miss_not_a_500(client):
+    """Regression (schema drift): a cache entry written by a previous
+    deploy whose fields no longer fit QueryResponse (extra='forbid')
+    must be treated as a miss and served fresh, not 500 for the TTL."""
+    from app.api.query import _cache_key
+
+    stale = b'{"query": "q", "removed_field_from_old_schema": true}'
+    client.app.state.redis_store.kv[_cache_key("What is RAFT?", None)] = stale
+
+    resp = client.post("/v1/query", json={"query": "What is RAFT?"})
+    assert resp.status_code == 200
+    assert resp.json()["cached"] is False          # served fresh
+    assert client.app.state.service.calls == 1     # pipeline actually ran
+
+
 def test_identical_query_served_from_cache_second_time(client):
     from app.observability import CACHE_REQUESTS
 

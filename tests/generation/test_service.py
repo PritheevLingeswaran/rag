@@ -6,6 +6,7 @@ import pytest
 
 from app.errors import (
     LLMAuthError,
+    LLMConfigError,
     LLMMalformedError,
     LLMQuotaError,
     LLMServerError,
@@ -102,6 +103,7 @@ def test_fully_fabricated_answer_falls_back_to_extractive():
     (LLMQuotaError("quota", retry_after_s=30.0), "degraded_quota"),
     (LLMTimeoutError("slow"), "degraded_timeout"),
     (LLMMalformedError("garbage"), "degraded_llm_malformed"),
+    (LLMConfigError("model not found (HTTP 404)"), "degraded_llm_config"),
     (LLMAuthError("bad key"), "degraded_llm_auth"),
 ])
 def test_llm_failures_degrade_to_extractive_with_explicit_status(

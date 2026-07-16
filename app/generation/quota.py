@@ -111,10 +111,18 @@ class _LocalCounters:
     def incr(self, key: str) -> int:
         with self._lock:
             self._counts[key] = self._counts.get(key, 0) + 1
-            # opportunistic GC: keys embed their window, old ones are dead
+            # opportunistic GC: prune only per-minute (:rpm:) keys, whose
+            # fixed-width epoch-minute suffix makes lexicographic == numeric
+            # order. Daily (:rpd:) keys are NEVER pruned: ':rpd:' sorts
+            # before ':rpm:', so a naive keep-last-N evicted the LIVE daily
+            # counter mid-day, resetting the day's count (quota over-spend).
+            # At most a handful of rpd keys ever exist (one per day).
             if len(self._counts) > 1000:
-                live = sorted(self._counts.keys())[-100:]
-                self._counts = {k: self._counts[k] for k in live}
+                stale_rpm = sorted(
+                    k for k in self._counts if ":rpm:" in k
+                )[:-100]
+                for k in stale_rpm:
+                    del self._counts[k]
             return self._counts[key]
 
 
@@ -173,10 +181,23 @@ class QuotaGuard:
         rpm_key = f"llmq:{self.limits.model}:rpm:{minute}"
         rpd_key = f"llmq:{self.limits.model}:rpd:{day}"
 
-        # Count the day first: an RPM-denied request must not burn RPD.
-        # Ordering note: a request denied on RPD has still incremented
-        # RPM's counter; that costs at most one RPM slot in that minute,
-        # accepted for the simplicity of two plain counters.
+        # Count the MINUTE first: a request denied on RPM must not burn
+        # the scarce daily budget. (Counting the day first drained a
+        # whole day's RPD in minutes under sustained over-RPM load: at
+        # the 30/min API rate limit vs the 13/min LLM budget, every
+        # denied request still consumed an RPD slot.) The residual leak
+        # now points the harmless direction: a request denied on RPD has
+        # consumed one RPM slot in that minute, which costs nothing real
+        # -- RPD-denied means no LLM calls happen today anyway.
+        rpm_used = self._count(rpm_key, 120)
+        if rpm_used > self.enforced_rpm:
+            return QuotaDecision(
+                allowed=False, reason=REASON_RPM,
+                remaining_rpm=0,
+                remaining_rpd=self.enforced_rpd,  # not consulted: RPD was deliberately not counted
+                retry_after_s=round(60.0 - (now % 60), 1),
+            )
+
         rpd_used = self._count(rpd_key, int(seconds_to_pacific_midnight(now)) + 60)
         # 80% daily alert (Stage 7.7): one alert per resource per day,
         # dedupe inside AlertManager.
@@ -190,18 +211,9 @@ class QuotaGuard:
         if rpd_used > self.enforced_rpd:
             return QuotaDecision(
                 allowed=False, reason=REASON_RPD,
-                remaining_rpm=self.enforced_rpm,
+                remaining_rpm=max(0, self.enforced_rpm - rpm_used),
                 remaining_rpd=0,
                 retry_after_s=round(seconds_to_pacific_midnight(now), 0),
-            )
-
-        rpm_used = self._count(rpm_key, 120)
-        if rpm_used > self.enforced_rpm:
-            return QuotaDecision(
-                allowed=False, reason=REASON_RPM,
-                remaining_rpm=0,
-                remaining_rpd=max(0, self.enforced_rpd - rpd_used),
-                retry_after_s=round(60.0 - (now % 60), 1),
             )
 
         return QuotaDecision(

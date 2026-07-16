@@ -55,6 +55,15 @@ class LLMQuotaError(LLMError):
         self.retry_after_s = retry_after_s
 
 
+class LLMConfigError(LLMError):
+    """The provider rejected the request AS WE CONFIGURED IT (HTTP 404
+    unknown/retired model, 400 bad request shape, ...). Not retryable and
+    not the provider's fault; logged loudly like auth failures. Kept
+    distinct from LLMMalformedError so a wrong model name is never
+    misdiagnosed as a provider response-shape problem (this exact
+    confusion happened in production with a retired model id)."""
+
+
 class LLMTimeoutError(LLMError):
     """The request exceeded our client-side timeout."""
 

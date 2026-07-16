@@ -22,7 +22,7 @@ groups:
       # incident or our config broke.
       - alert: ErrorRateHigh
         expr: >
-          sum(rate(ragp_errors_total{type=~"llm_server_error|llm_malformed|llm_auth"}[10m]))
+          sum(rate(ragp_errors_total{type=~"llm_server_error|llm_malformed|llm_auth|llm_config"}[10m]))
           /
           sum(rate(ragp_http_request_duration_seconds_count{path="/v1/query"}[10m]))
           > 0.05
