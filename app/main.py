@@ -105,6 +105,13 @@ def create_app() -> FastAPI:
         openapi_url="/openapi.json",
     )
 
+    @app.get("/", include_in_schema=False)
+    def root():
+        from starlette.responses import RedirectResponse
+
+        # A human at the bare URL means "show me the API" -> /docs.
+        return RedirectResponse("/docs", status_code=307)
+
     @app.get("/privacy", include_in_schema=False)
     def privacy():
         from starlette.responses import PlainTextResponse
