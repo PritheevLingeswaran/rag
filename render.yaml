@@ -23,6 +23,10 @@ services:
         sync: false                # optional: absent => degraded_no_llm
       - key: GROQ_API_KEY
         sync: false                # optional: secondary LLM fallback
+      - key: GOOGLE_CLIENT_ID
+        sync: false                # optional: Google sign-in (Stage 9.6)
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false                # optional: Google sign-in (Stage 9.6)
       - key: ALERT_WEBHOOK_URL
         sync: false                # 80% quota alerts (e.g. ntfy.sh topic)
       - key: CORS_ORIGINS

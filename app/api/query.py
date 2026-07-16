@@ -113,6 +113,15 @@ async def query(
 
     request_id = getattr(request.state, "request_id", None)
     redis_store = getattr(request.app.state, "redis_store", None)
+    # Google-authenticated users get the smaller per-user grants
+    # (Stage 9.5 point 3: sign-ups are free for an attacker, so
+    # individual grants stay small; API-key limits are unchanged).
+    if client_id.startswith("user:"):
+        rpm_limit = settings.user_rate_limit_per_minute
+        daily_limit = settings.user_daily_quota
+    else:
+        rpm_limit = settings.rate_limit_per_minute
+        daily_limit = settings.daily_quota_per_key
     if redis_store is not None:
         # daily per-key quota first (the scarcer resource), then RPM
         import time as _time
@@ -122,7 +131,7 @@ async def query(
             f"apiq:{client_id}:{_time.strftime('%Y%m%d', _time.gmtime())}",
             SECONDS_PER_DAY + 3600,
         )
-        if day_used is not None and day_used > settings.daily_quota_per_key:
+        if day_used is not None and day_used > daily_limit:
             seconds_to_utc_midnight = SECONDS_PER_DAY - int(
                 _time.time() % SECONDS_PER_DAY
             )
@@ -131,7 +140,7 @@ async def query(
 
         decision = await anyio.to_thread.run_sync(
             redis_store.check_rate_limit, client_id,
-            settings.rate_limit_per_minute, 60,
+            rpm_limit, 60,
         )
         if not decision.allowed:
             ERRORS.labels(type="rate_limited").inc()

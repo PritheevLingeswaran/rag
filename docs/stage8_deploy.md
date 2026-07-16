@@ -62,6 +62,13 @@ the wait. Acceptable at this stage; the fix that removes it is money.
    DNS → Render provisions TLS automatically.
 7. **Keepalive**: UptimeRobot monitor, GET `https://<url>/health`,
    interval 10 min. (Doubles as your uptime alerting.)
+   *(Superseded 2026-07-16 by `.github/workflows/healthcheck.yml`.)*
+7b. **Google sign-in (Stage 9.6, optional)**: Google Cloud Console →
+   APIs & Services → Credentials → Create OAuth client (Web). Add BOTH
+   authorized redirect URIs: `https://<url>/auth/google/callback` and
+   `http://localhost:8000/auth/google/callback`. Set `GOOGLE_CLIENT_ID`
+   + `GOOGLE_CLIENT_SECRET` in the service env. Absent, the frontend
+   still serves; the login route answers 503 with a clear error.
 8. **Verify**: `curl https://<url>/health` → 200; a `/v1/query` with
    your key; check the Gemini numbers in AI Studio and update
    `configs/free_tier_limits.json` if they differ (Stage 2.5 action

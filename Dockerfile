@@ -43,6 +43,7 @@ COPY app/ app/
 COPY data/ data/
 COPY configs/ configs/
 COPY migrations/ migrations/
+COPY frontend/ frontend/
 COPY PRIVACY.md PRIVACY.md
 
 ENV PATH=/opt/venv/bin:$PATH \
@@ -59,4 +60,6 @@ EXPOSE 8000
 # genuinely means READY -- suitable for the platform health check.
 # --no-access-log: privacy policy commitment -- the app writes no
 # per-request IP logs (the host's edge logs under its own policy).
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --no-access-log"]
+# --proxy-headers: honor X-Forwarded-Proto from Render's edge so
+# request.base_url is https (OAuth redirect URIs must match exactly).
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --no-access-log --proxy-headers --forwarded-allow-ips '*'"]

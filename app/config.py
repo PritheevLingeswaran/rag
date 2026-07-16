@@ -87,6 +87,21 @@ class Settings(BaseSettings):
     corpus_path: str = "data/corpus_v1.jsonl"
     serve_pipeline: bool = True   # tests boot the app without models
 
+    # Google OAuth (Stage 9.6, per the Stage 9.5 decisions). Both unset
+    # => the /auth/google/* routes return 503 with a clear error; the
+    # API-key surface is unaffected. Web sessions additionally need
+    # REDIS_URL (session store) and DATABASE_URL (users table at login).
+    google_client_id: str | None = None
+    google_client_secret: str | None = None
+    session_ttl_s: int = 7 * 86_400   # fixed 7-day TTL, no sliding refresh
+
+    # Per-user limits for Google-authenticated web users (Stage 9.5
+    # point 3): deliberately below the API-key limits because a Google
+    # sign-up is a free quota grant to an attacker -- individual grants
+    # stay small; the global QuotaGuards remain the aggregate wall.
+    user_rate_limit_per_minute: int = 10
+    user_daily_quota: int = 50
+
     # CORS: comma-separated exact origins. Unset => NO CORS headers are
     # emitted at all (deny-by-default); "*" is deliberately rejected in
     # production by create_app.

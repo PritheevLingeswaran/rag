@@ -23,7 +23,7 @@ def get_client_id(
 
     keys = settings.api_key_list
     provided = request.headers.get("x-api-key", "")
-    if keys:
+    if provided and keys:
         for key in keys:
             if hmac.compare_digest(provided, key):
                 # Truncated digest, not a key prefix: two keys sharing
@@ -35,7 +35,18 @@ def get_client_id(
         ERRORS.labels(type="auth_failed").inc()
         raise HTTPException(status_code=401,
                             detail="missing or invalid API key")
-    if settings.is_production:
+
+    # Web session branch (Stage 9.6): opaque HttpOnly cookie -> Redis
+    # session -> per-user identity. Checked only when no API key header
+    # was presented; a bad/expired session falls through to the
+    # key-required paths below (401 in production).
+    from app.api.auth import load_session
+
+    profile = load_session(request)
+    if profile is not None and profile.get("user_id"):
+        return f"user:{profile['user_id']}"
+
+    if keys or settings.is_production:
         # create_app refuses to boot keyless in production; this guards
         # against config reloads ever bypassing that.
         raise HTTPException(status_code=401,

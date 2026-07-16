@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ragp — ask the corpus</title>
+  <link rel="stylesheet" href="/app/style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <header>
+    <span class="brand">ragp</span>
+    <nav aria-label="account">
+      <span id="user-chip" hidden>
+        <img id="user-avatar" alt="" width="24" height="24" referrerpolicy="no-referrer">
+        <span id="user-name"></span>
+        <button id="logout-btn" type="button">Sign out</button>
+      </span>
+    </nav>
+  </header>
+
+  <main id="main">
+    <!-- Logged-out landing -->
+    <section id="landing" hidden>
+      <h1>Ask questions, get cited answers.</h1>
+      <p>
+        A retrieval-augmented answer engine over a curated systems-design
+        corpus. Every sentence in an answer is validated against the
+        sources it cites — unverifiable claims are removed, never shown.
+      </p>
+      <p>
+        <a class="btn-primary" id="login-link" href="/auth/google/login">
+          Sign in with Google
+        </a>
+      </p>
+      <p class="fine">
+        Signing in stores your name, email and avatar URL — never your
+        questions. <a href="/privacy">Privacy policy</a>.
+      </p>
+      <p id="landing-note" class="note" role="status" hidden></p>
+    </section>
+
+    <!-- Authenticated query interface -->
+    <section id="query-ui" hidden>
+      <form id="query-form">
+        <label for="query-input">Your question</label>
+        <div class="input-row">
+          <input id="query-input" name="query" type="text" required
+                 minlength="1" maxlength="2000" autocomplete="off"
+                 placeholder="e.g. how does raft handle leader election">
+          <button id="submit-btn" type="submit">Ask</button>
+        </div>
+      </form>
+
+      <!-- Honest loading state: elapsed timer + cold-start truth -->
+      <div id="loading" class="panel" hidden>
+        <p>
+          <span class="spinner" aria-hidden="true"></span>
+          Working… <span id="elapsed">0s</span>
+        </p>
+        <p id="coldstart-note" class="fine" hidden>
+          This service runs on a free tier that sleeps when idle — the
+          first request after a quiet period can take up to ~2 minutes
+          while it wakes. Subsequent requests are fast.
+        </p>
+      </div>
+
+      <!-- Result -->
+      <article id="result" class="panel" hidden aria-live="polite">
+        <div id="status-banner" class="banner"></div>
+        <p id="answer"></p>
+        <div id="citations-block" hidden>
+          <h2 class="h-small">Sources</h2>
+          <ul id="citations"></ul>
+        </div>
+        <p class="fine">
+          <span id="cache-note" hidden>Served from cache (≤1 h old). </span>
+          <span id="request-id"></span>
+        </p>
+      </article>
+
+      <!-- Rate-limit / capacity wait state with real countdown -->
+      <div id="wait-panel" class="panel banner-warn" hidden role="status">
+        <p id="wait-message"></p>
+        <p>You can ask again in <strong id="countdown">–</strong>.</p>
+      </div>
+
+      <!-- Network / unexpected error with retry -->
+      <div id="error-panel" class="panel banner-error" hidden role="alert">
+        <p id="error-message"></p>
+        <button id="retry-btn" type="button">Try again</button>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <a href="/privacy">Privacy</a> · <a href="/docs">API docs</a>
+  </footer>
+
+  <script src="/app/app.js"></script>
+</body>
+</html>

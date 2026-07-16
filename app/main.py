@@ -105,11 +105,20 @@ def create_app() -> FastAPI:
         openapi_url="/openapi.json",
     )
 
+    # Frontend (Stage 9.6): static files served same-origin (Stage 9.5
+    # point 0 -- no CORS, no cross-site cookies, one deploy). Routes
+    # registered above/below always win; the mount only catches paths
+    # no route claims. Without a frontend build (some test contexts),
+    # the bare URL falls back to the /docs redirect.
+    frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
+
     @app.get("/", include_in_schema=False)
     def root():
-        from starlette.responses import RedirectResponse
+        from starlette.responses import FileResponse, RedirectResponse
 
-        # A human at the bare URL means "show me the API" -> /docs.
+        index = frontend_dir / "index.html"
+        if index.exists():
+            return FileResponse(index)
         return RedirectResponse("/docs", status_code=307)
 
     @app.get("/privacy", include_in_schema=False)
@@ -213,6 +222,16 @@ def create_app() -> FastAPI:
 
     app.include_router(health_router)
     app.include_router(query_router)
+
+    from app.api.auth import router as auth_router
+
+    app.include_router(auth_router)
+
+    if frontend_dir.is_dir():
+        from starlette.staticfiles import StaticFiles
+
+        app.mount("/app", StaticFiles(directory=frontend_dir, html=True),
+                  name="frontend")
     return app
 
 

@@ -1,11 +1,33 @@
 # Privacy Policy
 
-_Last updated: 2026-07-11 · versioned in the project's public repository_
+_Last updated: 2026-07-16 · versioned in the project's public repository_
 
 This service is an **independently operated hobby project run by one
 person**. It is not a company, has no legal team, and no dedicated
 support staff. It is provided as-is, best-effort. Please do not submit
 personal, sensitive, or confidential information in your questions.
+
+## If you sign in with Google (optional)
+
+Signing in stores exactly four things from your verified Google
+identity: your Google account id, email address, display name, and
+avatar URL (the URL only — we never fetch or store the image). We
+receive **no other access to your Google account**: the tokens Google
+sends us are discarded immediately after verifying who you are.
+
+- Kept for: the life of your account. Delete it any time by request
+  (see contact below) — the account row and any live sessions are
+  removed; usage counters expire on their own within 25 hours.
+- Sessions: an opaque random id in an HttpOnly cookie, stored
+  server-side for at most 7 days, containing your profile snapshot and
+  nothing about your queries.
+- **Signing in does not change the core promise below: your queries
+  are still never stored, and nothing we keep links what you asked to
+  who you are.** Rate counters are keyed to an internal opaque user id
+  with the same short expiries as API keys.
+
+Sign-in is optional; the API works with API keys (or anonymously in
+development) with zero profile data collected.
 
 ## What happens to your query
 
@@ -23,6 +45,8 @@ anyone.
 | Rate-limit / quota counters | Redis (Upstash) | Keyed to a truncated tag of your API key (not reversible to you) | ≤ 25 hours (auto-expires) |
 | Operational logs (timings, status labels, random request IDs) | Host log stream (Render) | No — logs never contain query text, answers, or IP addresses written by the app | per host policy (Render free tier: ~7 days) |
 | Aggregate metrics (counts, latency histograms) | In-process /metrics | No — verified: no user data ever becomes a metric label | reset on every restart |
+| Google profile: account id, email, name, avatar URL (only if you sign in) | Postgres (Neon) | Yes — it is your identity | life of your account; deleted on request |
+| Session (opaque id → profile snapshot) | Redis (Upstash) | Yes (to your account, never to queries) | ≤ 7 days (auto-expires; logout deletes immediately) |
 | Raw queries in a database | — | — | **none — never stored** |
 
 ## Third parties that see data
@@ -44,8 +68,11 @@ anyone.
 
 ## Data removal
 
-Cached entries expire on their own within an hour. Beyond that there is
-nothing to delete, because nothing is kept.
+Cached entries expire on their own within an hour. If you never signed
+in, there is nothing else to delete, because nothing else is kept. If
+you signed in with Google, your account (the four profile fields above)
+is the one thing we store about you — request deletion via the contact
+below and it is removed along with any live sessions.
 
 ## Changes & contact
 

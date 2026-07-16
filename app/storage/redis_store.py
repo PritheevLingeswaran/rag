@@ -121,6 +121,38 @@ class RedisStore:
         except redis.RedisError as exc:
             logger.warning("cache_delete_failed", key=key, error=str(exc))
 
+    # ---- web sessions (Stage 9.6; opaque ids, fixed TTL) ----
+    # Failure policy: a session that cannot be read is a logged-out
+    # user (safe direction -- never grants access on error); budget-open
+    # bypass has the same effect, documented in the Stage 9.5 doc.
+
+    def session_set(self, session_id: str, payload: bytes, ttl_s: int) -> bool:
+        if not self._spend():
+            return False
+        try:
+            self._client.set(f"{self.ns}:sess:{session_id}", payload, ex=ttl_s)
+            return True
+        except redis.RedisError as exc:
+            logger.warning("session_set_failed", error=str(exc))
+            return False
+
+    def session_get(self, session_id: str) -> bytes | None:
+        if not self._spend():
+            return None
+        try:
+            return self._client.get(f"{self.ns}:sess:{session_id}")
+        except redis.RedisError as exc:
+            logger.warning("session_get_failed", error=str(exc))
+            return None
+
+    def session_delete(self, session_id: str) -> None:
+        if not self._spend():
+            return
+        try:
+            self._client.delete(f"{self.ns}:sess:{session_id}")
+        except redis.RedisError as exc:
+            logger.warning("session_delete_failed", error=str(exc))
+
     # ---- bounded counters (LLM quota accounting) ----
 
     _BOUNDED_INCR_LUA = """
