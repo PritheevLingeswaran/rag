@@ -50,7 +50,7 @@ def test_limits_loaded_from_stage25_file():
     assert LIMITS.rpd == 1000
     primary = load_model_limits("gemini-3.1-flash-lite")
     assert primary.rpm == 15
-    assert primary.rpd == 1000
+    assert primary.rpd == 500
 
 
 def test_unknown_model_refuses_to_guess():

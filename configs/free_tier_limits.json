@@ -68,10 +68,10 @@
     "primary_model": "gemini-3.1-flash-lite",
     "primary_rpm": 15,
     "primary_tpm": 250000,
-    "primary_rpd": 1000,
-    "primary_note": "Stable, free tier, verified 2026-07-13: model ID + free availability from official pricing page; RPM/TPM/RPD from two consistent secondary sources (pecollective.com, tinkerllm.com). Same numbers as retired gemini-2.5-flash-lite, so enforced 13 RPM / 900 RPD is unchanged. Confirm in AI Studio dashboard.",
+    "primary_rpd": 500,
+    "primary_note": "DASHBOARD-VERIFIED 2026-07-13 in this project's AI Studio rate-limit view: 15 RPM / 250K TPM / 500 RPD. Public secondary sources claim 1000 RPD; this project's actual tier is more restricted — dashboard numbers win per Stage 2.5 methodology. Enforced at 0.9 margin: 13 RPM / 450 RPD. Model ID + free availability from official pricing page.",
     "fallback_models": {
-      "gemini-2.5-flash": {"rpm": 10, "tpm": 250000, "rpd": 250},
+      "gemini-2.5-flash": {"rpm": 5, "tpm": 250000, "rpd": 20, "note": "dashboard-verified 2026-07-13 (public docs said 10/250); RPD already exceeded (22/20) in this project"},
       "gemini-2.5-flash-lite": {"rpm": 15, "tpm": 250000, "rpd": 1000, "note": "UNAVAILABLE to new users as of 2026-07-13 (prod 404: 'no longer available to new users'); entry kept for tests/history"}
     },
     "removed_2026_07_13": "prior primary 'gemini-3-flash' was never a valid API model ID (actual ID gemini-3-flash-preview, preview-only per pricing page); gemini-2.0-flash-lite is shut down",
