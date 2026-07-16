@@ -82,6 +82,12 @@ LLM_REQUESTS = Counter(
     ["outcome"],  # ok | quota_429 | timeout | server_error | malformed | config | auth
 )
 
+LLM_FALLBACK = Counter(
+    "ragp_llm_fallback_total",
+    "Secondary-provider fallback attempts after a primary LLM failure",
+    ["outcome"],  # ok | failed | throttled
+)
+
 RERANK_STATUS = Counter(
     "ragp_rerank_status_total",
     "Rerank outcomes per request",

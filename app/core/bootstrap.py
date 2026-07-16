@@ -144,9 +144,32 @@ def build_generation_pipeline(
             alerts=alerts,
         )
         logger.info("quota_guard_armed", **quota_guard.snapshot())
+
+    fallback_llm = None
+    fallback_guard = None
+    if llm is not None and settings.groq_api_key:
+        from app.generation.llm_client import GroqClient
+        from app.generation.quota import QuotaGuard, load_model_limits
+
+        fallback_llm = GroqClient(
+            api_key=settings.groq_api_key,
+            model=settings.groq_model,
+            timeout_s=settings.llm_timeout_s,
+            max_output_tokens=settings.llm_max_output_tokens,
+        )
+        fallback_guard = QuotaGuard(
+            load_model_limits(settings.groq_model),
+            redis_store=redis_store,
+            safety_margin=settings.quota_safety_margin,
+            alerts=alerts,
+        )
+        logger.info("fallback_llm_armed", **fallback_guard.snapshot())
     logger.info("generation_service_built",
-                llm="gemini" if llm else "none (degraded_no_llm path)")
+                llm="gemini" if llm else "none (degraded_no_llm path)",
+                fallback="groq" if fallback_llm else "none")
     return GenerationEvalAdapter(
-        GenerationService(pipeline, llm, quota_guard=quota_guard),
+        GenerationService(pipeline, llm, quota_guard=quota_guard,
+                          fallback_llm=fallback_llm,
+                          fallback_quota_guard=fallback_guard),
         pipeline.chunk_texts,
     )

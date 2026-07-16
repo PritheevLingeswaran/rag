@@ -18,6 +18,12 @@ covered by a test in tests/generation/test_service.py):
 | no LLM configured             | degraded_no_llm             | extractive answer           |
 | nothing retrieved             | no_results                  | explicit "no relevant documents" |
 
+Fallback layer (when a secondary provider is configured): every row
+above except the happy path first tries fallback_llm (with its own
+quota guard) before degrading; a fallback success validates normally
+and serves as 'ok'/'ok_partial_rejected' with llm_model naming the
+fallback. Both providers failing degrades with the PRIMARY's status.
+
 Degradation is always explicit (status + degraded flag on every result)
 and never an exception to the caller: retrieval-backed extractive answers
 with citations are strictly better than a 500. LLMAuthError is
@@ -104,7 +110,14 @@ class GenerationService:
                  llm: LLMClient | None,
                  validator: CitationValidator | None = None,
                  max_context_chunks: int = 5,
-                 quota_guard=None) -> None:
+                 quota_guard=None,
+                 fallback_llm: LLMClient | None = None,
+                 fallback_quota_guard=None) -> None:
+        """fallback_llm: optional secondary provider (Stage 2.5's planned
+        Groq fallback) tried when the primary fails OR its budget is
+        exhausted -- provider incidents and quota exhaustion become
+        fallback-served 'ok' answers instead of extractive degradation.
+        The extractive path remains the last resort when both fail."""
         if max_context_chunks <= 0:
             raise ValueError("max_context_chunks must be positive")
         self.pipeline = pipeline
@@ -112,6 +125,8 @@ class GenerationService:
         self.validator = validator or CitationValidator()
         self.max_context_chunks = max_context_chunks
         self.quota_guard = quota_guard
+        self.fallback_llm = fallback_llm
+        self.fallback_quota_guard = fallback_quota_guard
 
     # ---- helpers ----
 
@@ -141,16 +156,65 @@ class GenerationService:
             retry_after_s=retry_after_s,
         )
 
-    def _call_llm_once_retrying_5xx(self, prompt: str,
+    def _call_llm_once_retrying_5xx(self, llm, prompt: str,
                                     max_output_tokens: int | None = None):
         kwargs = {}
         if max_output_tokens is not None:
             kwargs["max_output_tokens"] = max_output_tokens
         try:
-            return self.llm.generate(prompt, **kwargs)
+            return llm.generate(prompt, **kwargs)
         except LLMServerError as exc:
             logger.warning("llm_server_error_retrying", error=str(exc))
-            return self.llm.generate(prompt, **kwargs)  # second failure propagates
+            return llm.generate(prompt, **kwargs)  # second failure propagates
+
+    def _attempt(self, llm, quota_guard, prompt: str,
+                 max_output_tokens: int | None):
+        """One provider attempt. Returns (llm_resp, None, None, llm_ms)
+        on success, or (None, degraded_status, retry_after_s, 0.0) on
+        failure -- with metrics, log level, and 429-cooldown recorded per
+        the failure taxonomy in the class docstring."""
+        from app.observability import ERRORS, LLM_REQUESTS
+        import time as _time
+
+        t0 = _time.perf_counter()
+        try:
+            resp = self._call_llm_once_retrying_5xx(llm, prompt,
+                                                    max_output_tokens)
+        except LLMQuotaError as exc:
+            LLM_REQUESTS.labels(outcome="quota_429").inc()
+            ERRORS.labels(type="llm_quota_429").inc()
+            logger.warning("llm_quota_exhausted",
+                           retry_after_s=exc.retry_after_s)
+            if quota_guard is not None:
+                quota_guard.record_provider_rejection(exc.retry_after_s)
+            return None, "degraded_quota", exc.retry_after_s, 0.0
+        except LLMTimeoutError as exc:
+            LLM_REQUESTS.labels(outcome="timeout").inc()
+            ERRORS.labels(type="llm_timeout").inc()
+            logger.warning("llm_timeout", error=str(exc))
+            return None, "degraded_timeout", None, 0.0
+        except LLMServerError as exc:
+            LLM_REQUESTS.labels(outcome="server_error").inc()
+            ERRORS.labels(type="llm_server_error").inc()
+            logger.error("llm_server_error_after_retry", error=str(exc))
+            return None, "degraded_llm_error", None, 0.0
+        except LLMMalformedError as exc:
+            LLM_REQUESTS.labels(outcome="malformed").inc()
+            ERRORS.labels(type="llm_malformed").inc()
+            logger.error("llm_malformed_response", error=str(exc))
+            return None, "degraded_llm_malformed", None, 0.0
+        except LLMConfigError as exc:
+            LLM_REQUESTS.labels(outcome="config").inc()
+            ERRORS.labels(type="llm_config").inc()
+            logger.error("llm_config_rejected_check_llm_model", error=str(exc))
+            return None, "degraded_llm_config", None, 0.0
+        except LLMAuthError as exc:
+            LLM_REQUESTS.labels(outcome="auth").inc()
+            ERRORS.labels(type="llm_auth").inc()
+            logger.error("llm_auth_failure_check_config", error=str(exc))
+            return None, "degraded_llm_auth", None, 0.0
+        LLM_REQUESTS.labels(outcome="ok").inc()
+        return resp, None, None, round((_time.perf_counter() - t0) * 1000, 1)
 
     # ---- entrypoint ----
 
@@ -171,8 +235,14 @@ class GenerationService:
             return self._degraded(query, context, rerank_info.status,
                                   "degraded_no_llm")
 
-        from app.observability import QUOTA_THROTTLED
+        from app.observability import LLM_FALLBACK, QUOTA_THROTTLED
 
+        prompt = self._build_prompt(query, context)
+
+        # ---- primary provider (proactive budget, then the call) ----
+        llm_resp = None
+        llm_ms = 0.0
+        throttle_reason: str | None = None
         if self.quota_guard is not None:
             decision = self.quota_guard.try_acquire()
             if not decision.allowed:
@@ -184,68 +254,59 @@ class GenerationService:
                     retry_after_s=decision.retry_after_s,
                     remaining_rpd=decision.remaining_rpd,
                 )
-                result = self._degraded(
-                    query, context, rerank_info.status,
-                    "degraded_quota_throttled",
-                    retry_after_s=decision.retry_after_s,
+                primary_status = "degraded_quota_throttled"
+                primary_retry: float | None = decision.retry_after_s
+                throttle_reason = decision.reason
+            else:
+                llm_resp, primary_status, primary_retry, llm_ms = (
+                    self._attempt(self.llm, self.quota_guard, prompt,
+                                  max_output_tokens)
                 )
-                result.extra["throttle_reason"] = decision.reason
-                return result
-
-        from app.observability import ERRORS, LLM_REQUESTS
-
-        prompt = self._build_prompt(query, context)
-        import time as _time
-
-        llm_t0 = _time.perf_counter()
-        try:
-            llm_resp = self._call_llm_once_retrying_5xx(
-                prompt, max_output_tokens
+        else:
+            llm_resp, primary_status, primary_retry, llm_ms = self._attempt(
+                self.llm, self.quota_guard, prompt, max_output_tokens
             )
-        except LLMQuotaError as exc:
-            # Provider rejected despite proactive accounting: WARNING,
-            # and open a cooldown so we stop asking until it clears.
-            LLM_REQUESTS.labels(outcome="quota_429").inc()
-            ERRORS.labels(type="llm_quota_429").inc()
-            logger.warning("llm_quota_exhausted",
-                           retry_after_s=exc.retry_after_s)
-            if self.quota_guard is not None:
-                self.quota_guard.record_provider_rejection(exc.retry_after_s)
-            return self._degraded(query, context, rerank_info.status,
-                                  "degraded_quota",
-                                  retry_after_s=exc.retry_after_s)
-        except LLMTimeoutError as exc:
-            LLM_REQUESTS.labels(outcome="timeout").inc()
-            ERRORS.labels(type="llm_timeout").inc()
-            logger.warning("llm_timeout", error=str(exc))
-            return self._degraded(query, context, rerank_info.status,
-                                  "degraded_timeout")
-        except LLMServerError as exc:
-            LLM_REQUESTS.labels(outcome="server_error").inc()
-            ERRORS.labels(type="llm_server_error").inc()
-            logger.error("llm_server_error_after_retry", error=str(exc))
-            return self._degraded(query, context, rerank_info.status,
-                                  "degraded_llm_error")
-        except LLMMalformedError as exc:
-            LLM_REQUESTS.labels(outcome="malformed").inc()
-            ERRORS.labels(type="llm_malformed").inc()
-            logger.error("llm_malformed_response", error=str(exc))
-            return self._degraded(query, context, rerank_info.status,
-                                  "degraded_llm_malformed")
-        except LLMConfigError as exc:
-            LLM_REQUESTS.labels(outcome="config").inc()
-            ERRORS.labels(type="llm_config").inc()
-            logger.error("llm_config_rejected_check_llm_model", error=str(exc))
-            return self._degraded(query, context, rerank_info.status,
-                                  "degraded_llm_config")
-        except LLMAuthError as exc:
-            LLM_REQUESTS.labels(outcome="auth").inc()
-            ERRORS.labels(type="llm_auth").inc()
-            logger.error("llm_auth_failure_check_config", error=str(exc))
-            return self._degraded(query, context, rerank_info.status,
-                                  "degraded_llm_auth")
-        LLM_REQUESTS.labels(outcome="ok").inc()
-        llm_ms = round((_time.perf_counter() - llm_t0) * 1000, 1)
+
+        # ---- secondary provider: a primary failure OR exhausted budget
+        # becomes a fallback-served answer instead of extractive ----
+        if llm_resp is None and self.fallback_llm is not None:
+            fb_allowed = True
+            if self.fallback_quota_guard is not None:
+                fb_decision = self.fallback_quota_guard.try_acquire()
+                fb_allowed = fb_decision.allowed
+                if not fb_allowed:
+                    LLM_FALLBACK.labels(outcome="throttled").inc()
+                    logger.warning("llm_fallback_throttled",
+                                   reason=fb_decision.reason)
+            if fb_allowed:
+                fb_resp, fb_status, _fb_retry, fb_ms = self._attempt(
+                    self.fallback_llm, self.fallback_quota_guard, prompt,
+                    max_output_tokens,
+                )
+                if fb_resp is not None:
+                    LLM_FALLBACK.labels(outcome="ok").inc()
+                    logger.warning(
+                        "llm_fallback_served",
+                        primary_status=primary_status,
+                        fallback_model=fb_resp.model,
+                    )
+                    llm_resp, llm_ms = fb_resp, fb_ms
+                else:
+                    LLM_FALLBACK.labels(outcome="failed").inc()
+                    logger.error("llm_fallback_failed",
+                                 primary_status=primary_status,
+                                 fallback_status=fb_status)
+
+        if llm_resp is None:
+            # Both providers out: degrade with the PRIMARY's status --
+            # the truthful root cause; the fallback's own failure is in
+            # the logs/metrics above.
+            result = self._degraded(query, context, rerank_info.status,
+                                    primary_status,
+                                    retry_after_s=primary_retry)
+            if throttle_reason is not None:
+                result.extra["throttle_reason"] = throttle_reason
+            return result
 
         if llm_resp.text.strip().lower().rstrip(".") == IDK_MARKER:
             return GenerationResult(

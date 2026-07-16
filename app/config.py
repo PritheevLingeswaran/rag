@@ -67,6 +67,13 @@ class Settings(BaseSettings):
     llm_timeout_s: float = 20.0
     llm_max_output_tokens: int = 1024
 
+    # Secondary LLM provider (Stage 2.5's planned Groq fallback). When
+    # set, a Gemini failure or exhausted Gemini budget falls back to
+    # Groq (its own quota guard) before the extractive path. Absent =>
+    # single-provider behavior, unchanged.
+    groq_api_key: str | None = None
+    groq_model: str = "llama-3.1-8b-instant"
+
     # Fraction of the provider's documented free-tier RPM/RPD we allow
     # ourselves (Stage 4.5). We hit our own wall before Google's.
     quota_safety_margin: float = 0.9

@@ -70,6 +70,17 @@ jobs:
           --baseline eval/results/baseline.json
           --tag ci-hybrid --fail-on-regression
 
+  # Dependency CVE scan. Deliberately NOT a required check (a new CVE in
+  # a pinned dep must not block unrelated merges on a solo project) --
+  # it fails visibly on the Actions page and is triaged from there.
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: pip install pip-audit && pip-audit -r requirements.txt
+
   deploy:
     # Auto-deploy to Render (Stage 8) only on master, only after tests
     # and eval gates pass. RENDER_DEPLOY_HOOK is a repo secret (Render

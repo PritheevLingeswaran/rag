@@ -11,7 +11,7 @@ from app.errors import (
     LLMQuotaError,
     LLMServerError,
     LLMTimeoutError,
-)
+)  # noqa: F401 - all raised in the failure-taxonomy parametrize
 from app.core.hybrid import RerankInfo, RetrievedChunk
 from app.generation.llm_client import LLMResponse
 from app.generation.service import GenerationResult, GenerationService
@@ -115,6 +115,73 @@ def test_llm_failures_degrade_to_extractive_with_explicit_status(
     assert result.answer.startswith("A follower that hears no heartbeat")
     assert result.citations == ["raft::c0"]
     assert result.retrieved_chunk_ids  # retrieval still delivered
+
+
+# ---- secondary-provider fallback ----
+
+class DenyingGuard:
+    def try_acquire(self):
+        from app.generation.quota import REASON_RPD, QuotaDecision
+        return QuotaDecision(False, REASON_RPD, 0, 0, 3600.0)
+
+    def record_provider_rejection(self, retry_after_s):
+        pass
+
+
+def test_primary_failure_served_by_fallback_as_ok():
+    primary = FakeLLM(errors=[LLMServerError("boom"), LLMServerError("boom")])
+    fallback = FakeLLM("A follower becomes a candidate and requests votes [1].",
+                       model="fallback-model")
+    service = GenerationService(StubPipeline(), primary,
+                                fallback_llm=fallback)
+    result = service.answer("q")
+    assert result.status == "ok"
+    assert result.degraded is False
+    assert result.llm_model == "fallback-model"
+    assert fallback.calls == 1
+
+
+def test_primary_quota_exhausted_served_by_fallback():
+    """The main capacity win: primary budget gone (450 RPD) must not
+    mean a degraded day when the fallback has 14,400 RPD spare."""
+    primary = FakeLLM("never called")
+    fallback = FakeLLM("A follower becomes a candidate and requests votes [1].",
+                       model="fallback-model")
+    service = GenerationService(StubPipeline(), primary,
+                                quota_guard=DenyingGuard(),
+                                fallback_llm=fallback)
+    result = service.answer("q")
+    assert result.status == "ok"
+    assert result.llm_model == "fallback-model"
+    assert primary.calls == 0          # guard denied before the call
+    assert fallback.calls == 1
+
+
+def test_both_providers_failing_degrades_with_primary_status():
+    primary = FakeLLM(errors=[LLMTimeoutError("slow")])
+    fallback = FakeLLM(errors=[LLMServerError("down"), LLMServerError("down")])
+    service = GenerationService(StubPipeline(), primary,
+                                fallback_llm=fallback)
+    result = service.answer("q")
+    assert result.status == "degraded_timeout"   # PRIMARY's failure, truthfully
+    assert result.degraded is True
+    assert result.answer.startswith("A follower that hears no heartbeat")
+
+
+def test_fallback_guard_denial_degrades_like_no_fallback():
+    primary = FakeLLM(errors=[LLMTimeoutError("slow")])
+    fallback = FakeLLM("unused")
+    service = GenerationService(StubPipeline(), primary,
+                                fallback_llm=fallback,
+                                fallback_quota_guard=DenyingGuard())
+    result = service.answer("q")
+    assert result.status == "degraded_timeout"
+    assert fallback.calls == 0
+
+
+def test_no_fallback_behavior_unchanged():
+    result = make_service(FakeLLM(errors=[LLMTimeoutError("slow")])).answer("q")
+    assert result.status == "degraded_timeout"
 
 
 def test_quota_error_surfaces_retry_after():

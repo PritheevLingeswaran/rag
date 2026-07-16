@@ -83,6 +83,10 @@ def load_model_limits(model: str, limits_path: Path = LIMITS_PATH) -> ModelLimit
     if model in fallback:
         return ModelLimits(model, int(fallback[model]["rpm"]),
                            int(fallback[model]["rpd"]))
+    groq = data.get("llm_groq_free_fallback", {}).get("models", {})
+    if model in groq:
+        return ModelLimits(model, int(groq[model]["rpm"]),
+                           int(groq[model]["rpd"]))
     raise ConfigurationError(
         f"no free-tier limits recorded for model {model!r} in "
         f"{limits_path.name}; add them (sourced, not guessed) before use"

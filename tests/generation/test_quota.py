@@ -53,6 +53,12 @@ def test_limits_loaded_from_stage25_file():
     assert primary.rpd == 500
 
 
+def test_groq_fallback_limits_loaded_from_stage25_file():
+    groq = load_model_limits("llama-3.1-8b-instant")
+    assert groq.rpm == 30
+    assert groq.rpd == 14400
+
+
 def test_unknown_model_refuses_to_guess():
     with pytest.raises(ConfigurationError, match="no free-tier limits"):
         load_model_limits("gemini-99-ultra")

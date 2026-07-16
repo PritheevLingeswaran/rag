@@ -21,6 +21,8 @@ services:
         sync: false                # Neon pooled connection string
       - key: GEMINI_API_KEY
         sync: false                # optional: absent => degraded_no_llm
+      - key: GROQ_API_KEY
+        sync: false                # optional: secondary LLM fallback
       - key: ALERT_WEBHOOK_URL
         sync: false                # 80% quota alerts (e.g. ntfy.sh topic)
       - key: CORS_ORIGINS

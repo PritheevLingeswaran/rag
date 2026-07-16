@@ -34,6 +34,7 @@ from app.logging_config import get_logger
 logger = get_logger(__name__)
 
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
+GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 
 
 @dataclass(frozen=True)
@@ -142,4 +143,84 @@ class GeminiClient:
             model=self._model,
             prompt_tokens=usage.get("promptTokenCount"),
             output_tokens=usage.get("candidatesTokenCount"),
+        )
+
+
+class GroqClient:
+    """Secondary provider (Stage 2.5 planned fallback). OpenAI-compatible
+    chat-completions REST; maps every failure to the SAME typed taxonomy
+    as GeminiClient so GenerationService's handling is provider-blind."""
+
+    def __init__(self, api_key: str, model: str = "llama-3.1-8b-instant",
+                 timeout_s: float = 20.0, max_output_tokens: int = 1024,
+                 base_url: str = GROQ_BASE_URL,
+                 transport: httpx.BaseTransport | None = None) -> None:
+        if not api_key:
+            raise LLMAuthError("GROQ_API_KEY is empty")
+        self._model = model
+        self._timeout_s = timeout_s
+        self._max_output_tokens = max_output_tokens
+        self._client = httpx.Client(
+            base_url=base_url, timeout=timeout_s, transport=transport,
+            headers={"Authorization": f"Bearer {api_key}"},
+        )
+
+    def generate(self, prompt: str,
+                 max_output_tokens: int | None = None) -> LLMResponse:
+        cap = self._max_output_tokens
+        if max_output_tokens is not None:
+            cap = min(cap, max_output_tokens)
+        try:
+            resp = self._client.post(
+                "/chat/completions",
+                json={
+                    "model": self._model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.0,
+                    "max_tokens": cap,
+                },
+            )
+        except httpx.TimeoutException as exc:
+            raise LLMTimeoutError(
+                f"groq request exceeded {self._timeout_s}s"
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise LLMServerError(f"network error calling groq: {exc}") from exc
+
+        if resp.status_code == 429:
+            retry_after = None
+            header = resp.headers.get("retry-after")
+            if header is not None:
+                try:
+                    retry_after = float(header)
+                except ValueError:
+                    logger.warning("unparseable_retry_after", value=header)
+            raise LLMQuotaError("groq quota exhausted (429)",
+                                retry_after_s=retry_after)
+        if resp.status_code in (401, 403):
+            raise LLMAuthError(f"groq auth failed: HTTP {resp.status_code}")
+        if resp.status_code >= 500:
+            raise LLMServerError(f"groq server error: HTTP {resp.status_code}")
+        if resp.status_code != 200:
+            raise LLMConfigError(
+                f"groq rejected the request as configured (HTTP "
+                f"{resp.status_code}, model={self._model!r}): {resp.text[:200]}"
+            )
+
+        try:
+            body = resp.json()
+            text = body["choices"][0]["message"]["content"]
+        except (ValueError, KeyError, IndexError, TypeError) as exc:
+            raise LLMMalformedError(
+                f"groq response missing expected fields: {exc}: {resp.text[:200]}"
+            ) from exc
+        if not text or not text.strip():
+            raise LLMMalformedError("groq returned an empty answer")
+
+        usage = body.get("usage", {})
+        return LLMResponse(
+            text=text,
+            model=self._model,
+            prompt_tokens=usage.get("prompt_tokens"),
+            output_tokens=usage.get("completion_tokens"),
         )

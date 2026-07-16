@@ -12,7 +12,7 @@ from app.errors import (
     LLMServerError,
     LLMTimeoutError,
 )
-from app.generation.llm_client import GeminiClient
+from app.generation.llm_client import GeminiClient, GroqClient
 
 
 def make_client(handler) -> GeminiClient:
@@ -122,6 +122,58 @@ def test_safety_blocked_empty_text_raises_malformed():
 def test_empty_api_key_rejected_at_construction():
     with pytest.raises(LLMAuthError):
         GeminiClient(api_key="")
+
+
+# ---- GroqClient: same taxonomy, OpenAI-compatible shape ----
+
+def make_groq(handler) -> GroqClient:
+    return GroqClient(api_key="test-key",
+                      transport=httpx.MockTransport(handler))
+
+
+def test_groq_happy_path_parses_text_and_usage():
+    body = {
+        "choices": [{"message": {"role": "assistant",
+                                 "content": "Grounded answer [1]."}}],
+        "usage": {"prompt_tokens": 90, "completion_tokens": 15},
+    }
+    resp = make_groq(lambda req: httpx.Response(200, json=body)).generate("p")
+    assert resp.text == "Grounded answer [1]."
+    assert resp.model == "llama-3.1-8b-instant"
+    assert resp.output_tokens == 15
+
+
+def test_groq_sends_bearer_and_temperature_zero():
+    captured = {}
+
+    def handler(req):
+        captured["auth"] = req.headers.get("authorization")
+        import json
+        captured["body"] = json.loads(req.content)
+        return httpx.Response(200, json={
+            "choices": [{"message": {"content": "x"}}], "usage": {},
+        })
+
+    make_groq(handler).generate("p")
+    assert captured["auth"] == "Bearer test-key"
+    assert captured["body"]["temperature"] == 0.0
+    assert captured["body"]["messages"] == [{"role": "user", "content": "p"}]
+
+
+@pytest.mark.parametrize("status,exc", [
+    (429, LLMQuotaError), (401, LLMAuthError), (403, LLMAuthError),
+    (500, LLMServerError), (404, LLMConfigError), (400, LLMConfigError),
+])
+def test_groq_error_statuses_map_to_same_taxonomy(status, exc):
+    client = make_groq(lambda req: httpx.Response(status, json={}))
+    with pytest.raises(exc):
+        client.generate("p")
+
+
+def test_groq_empty_answer_raises_malformed():
+    body = {"choices": [{"message": {"content": "  "}}]}
+    with pytest.raises(LLMMalformedError):
+        make_groq(lambda req: httpx.Response(200, json=body)).generate("p")
 
 
 def test_request_carries_key_header_and_temperature_zero():
