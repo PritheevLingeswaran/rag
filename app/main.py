@@ -149,6 +149,18 @@ def create_app() -> FastAPI:
             path=request.url.path,
             exc_info=exc,
         )
+        # Page the operator (Stage 11): an unhandled exception is always
+        # a bug (acceptable background rate: zero). AlertManager dedupes
+        # to one page per UTC day and never raises. Exception detail
+        # stays out of the alert -- ntfy is a third party; the request_id
+        # is the lookup key into our own logs.
+        alerts = getattr(request.app.state, "alerts", None)
+        if alerts is not None:
+            alerts.fire(
+                "unhandled_exception", 1.0,
+                f"unhandled exception on {request.url.path} "
+                f"(request_id {request_id}); check service logs",
+            )
         return JSONResponse(
             status_code=500,
             content={"error": "internal server error",

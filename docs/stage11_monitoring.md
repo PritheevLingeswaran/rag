@@ -35,7 +35,26 @@ local/dev. **LIVE 2026-07-16**: token set on the Render service via
 API and verified on production (bare → 401, bearer → 200); the
 Grafana scrape config just needs the token from the operator's `.env`.
 
-## Operator runbook (~10 min, after Stage 8's deploy)
+## IMPLEMENTED 2026-07-16 — account-free monitoring core
+
+The uptime/keepalive/paging core now runs on infrastructure the
+project already had, no new accounts:
+
+| Concern | Implementation | Contact point |
+|---|---|---|
+| Uptime + keyword check | `.github/workflows/healthcheck.yml`: GET `/health` every 10 min, requires `"status":"ok"` | ntfy topic (phone/email), repeats every 10 min while down |
+| Keepalive (Stage 8 item) | same workflow — 10-min pings beat the 15-min spin-down | — |
+| Unhandled exceptions → page | `app/main.py` exception handler fires AlertManager (deduped 1/day; no exception detail leaves the box) | ntfy topic |
+| Quota thresholds (Gemini RPD, Upstash commands, Neon storage) | in-app breakers, 80% alerts (Stage 7.7, pre-existing) | ntfy topic |
+
+Honest limits: GitHub cron can lag minutes under load and schedules
+pause after 60 days of repo inactivity; in-app alerts can't fire if
+the process is down (that's what the external workflow is for). p95 /
+error-rate / shedding trend alerts still want real metric evaluation —
+that remains the Grafana Cloud runbook below, now optional rather than
+blocking.
+
+## Operator runbook (~10 min, after Stage 8's deploy — now OPTIONAL, for dashboards + trend alerts)
 
 1. **Grafana Cloud** (free tier: 10k series, 14-day retention — far
    above our ~200 series): create stack →

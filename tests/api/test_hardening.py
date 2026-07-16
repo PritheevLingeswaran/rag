@@ -77,6 +77,31 @@ def test_internal_exception_leaks_nothing_to_client(client_factory):
         assert secret not in text
 
 
+def test_internal_exception_pages_the_operator(client_factory):
+    """Stage 11: an unhandled exception fires exactly one operator alert
+    (deduped per day by AlertManager) carrying the request path but NO
+    exception detail (ntfy is a third party)."""
+    class RecordingAlerts:
+        def __init__(self):
+            self.fired = []
+
+        def fire(self, resource, pct, message, details=None):
+            self.fired.append((resource, message))
+            return True
+
+    with client_factory(ExplodingService(),
+                        raise_server_exceptions=False) as client:
+        alerts = RecordingAlerts()
+        client.app.state.alerts = alerts
+        client.post("/v1/query", json={"query": "trigger the bug"})
+
+    assert len(alerts.fired) == 1
+    resource, message = alerts.fired[0]
+    assert resource == "unhandled_exception"
+    assert "/v1/query" in message
+    assert "hunter2" not in message and "RuntimeError" not in message
+
+
 def test_malformed_json_body_is_clean_422(client_factory):
     with client_factory() as client:
         resp = client.post("/v1/query", content=b'{"query": !!!broken',

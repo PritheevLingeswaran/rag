@@ -1,0 +1,40 @@
+# Uptime monitor + keepalive (Stage 11, account-free variant).
+#
+# Every 10 minutes: GET /health and require the literal ok status —
+# the keyword check catches a 200 that isn't healthy. Doubles as the
+# Stage 8 keepalive (Render free spins down after 15 idle minutes;
+# always-on fits the 750 h/month budget by construction). On failure,
+# a notification goes to the operator's ntfy topic (ALERT_WEBHOOK_URL
+# repo secret — same contact point as the in-app quota alerts) and
+# repeats every 10 min until recovery; the recovery run posts nothing.
+#
+# Honest limits (documented in docs/stage11_monitoring.md): GitHub
+# cron can lag minutes under load, and GitHub disables schedules after
+# 60 days without repo activity — fine for this tier, not an SLA tool.
+name: healthcheck
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: GET /health (keepalive + keyword check)
+        # -m 150 tolerates a cold start (platform spin-up + ~46 s boot)
+        # so a wake-from-deploy is not a false page.
+        run: |
+          body=$(curl -fsS -m 150 https://ragp-pwf2.onrender.com/health)
+          echo "$body"
+          echo "$body" | grep -q '"status":"ok"'
+
+      - name: Page the operator via ntfy
+        if: failure()
+        env:
+          HOOK: ${{ secrets.ALERT_WEBHOOK_URL }}
+        run: |
+          curl -fsS -m 10 -X POST "$HOOK" \
+            -H "Title: ragp DOWN" -H "Priority: urgent" -H "Tags: rotating_light" \
+            -d "healthcheck failed at $(date -u +%FT%TZ) — $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
