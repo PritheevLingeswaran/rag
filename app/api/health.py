@@ -19,7 +19,7 @@ router = APIRouter()
 @router.get("/health")
 def health(settings: Settings = Depends(get_settings)) -> dict:
     return {
-        "status": "ok",
+        "status": "borked",
         "app_name": settings.app_name,
         "version": __version__,
         "environment": settings.environment,
