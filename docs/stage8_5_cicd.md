@@ -30,14 +30,16 @@ only after `test` passes.
 | Required check `test` = FAILURE, still BLOCKED | 16:45:36Z |
 | PR closed unmerged, branch deleted | 16:46Z |
 
-## Operator action to finish the deploy leg (~2 min, dashboard-side)
+## Deploy leg — COMPLETE 2026-07-16
 
-Render service → Settings → Deploy Hook → copy URL → GitHub repo →
-Settings → Secrets and variables → Actions → new secret
-`RENDER_DEPLOY_HOOK`. Keep Render's own Auto-Deploy **off** (it is off
-now, post-rollback) so the ONLY path to production is a green CI run
-on master. Production is currently 3 commits behind master (still
-0.1.0, pre-Gemini-fix) until the hook is set or a manual deploy runs.
+`RENDER_DEPLOY_HOOK` set as a GitHub Actions secret 17:30Z; hook
+deploy of `91a07fc` live at 17:32:37Z (`/health` → 0.1.1, `/v1/query`
+→ first non-degraded `status: ok` in production). Render's own
+Auto-Deploy explicitly set to **no** via API, so the ONLY path to
+production is a green CI run on master. Root cause of the 3-day
+deploy freeze, confirmed via the deploys API: the Stage 8 drill's
+rollback had pinned the service (live deploy's trigger: `rollback`);
+`autoDeploy: yes` was ignored from then on.
 
 ## Honest notes
 

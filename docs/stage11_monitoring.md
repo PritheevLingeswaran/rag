@@ -31,7 +31,9 @@ auth first: `METRICS_TOKEN` env → `/metrics` demands
 `Authorization: Bearer <token>` (constant-time compare; 401 otherwise).
 Grafana Cloud's *Metrics Endpoint* integration supports exactly this.
 Tested (`test_metrics_token_auth_when_configured`). Unset = open, for
-local/dev.
+local/dev. **LIVE 2026-07-16**: token set on the Render service via
+API and verified on production (bare → 401, bearer → 200); the
+Grafana scrape config just needs the token from the operator's `.env`.
 
 ## Operator runbook (~10 min, after Stage 8's deploy)
 
