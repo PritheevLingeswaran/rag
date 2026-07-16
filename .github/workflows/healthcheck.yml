@@ -37,4 +37,4 @@ jobs:
         run: |
           curl -fsS -m 10 -X POST "$HOOK" \
             -H "Title: ragp DOWN" -H "Priority: urgent" -H "Tags: rotating_light" \
-            -d "healthcheck failed at $(date -u +%FT%TZ) — $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            -d "healthcheck failed at $(date -u +%FT%TZ) - $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
