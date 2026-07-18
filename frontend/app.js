@@ -331,8 +331,20 @@ async function init() {
     showLanding("Can't reach the server right now — try refreshing in a minute.");
     return;
   }
-  if (resp.ok) showChat(await resp.json());
-  else showLanding();
+  if (resp.ok) { showChat(await resp.json()); return; }
+  // Development backends allow anonymous queries (Stage 5 policy); let
+  // the chat work there without sign-in instead of dead-ending on a
+  // landing page. Production stays login-gated.
+  try {
+    const health = await (await fetch("/health")).json();
+    if (health.environment === "development") {
+      showChat(null);
+      addMsg("system").textContent =
+        "Developer mode: not signed in — queries run anonymously.";
+      return;
+    }
+  } catch { /* fall through to landing */ }
+  showLanding();
 }
 
 /* ---------- state gallery (#demo:<name>) ---------- */

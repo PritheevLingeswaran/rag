@@ -40,6 +40,11 @@
 
 * { box-sizing: border-box; }
 
+/* The hidden attribute must ALWAYS win: author display rules (e.g.
+   #chat-ui{display:flex}) silently override the UA's [hidden] style —
+   this exact conflict shipped the composer to logged-out production. */
+[hidden] { display: none !important; }
+
 html, body { height: 100%; }
 
 body {
