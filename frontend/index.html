@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="/app/style.css">
 </head>
 <body>
-  <a class="skip-link" href="#main">Skip to main content</a>
+  <a class="skip-link" href="#composer-input">Skip to question box</a>
   <header>
     <span class="brand">ragp</span>
     <nav aria-label="account">
@@ -40,56 +40,26 @@
       <p id="landing-note" class="note" role="status" hidden></p>
     </section>
 
-    <!-- Authenticated query interface -->
-    <section id="query-ui" hidden>
-      <form id="query-form">
-        <label for="query-input">Your question</label>
-        <div class="input-row">
-          <input id="query-input" name="query" type="text" required
-                 minlength="1" maxlength="2000" autocomplete="off"
-                 placeholder="e.g. how does raft handle leader election">
-          <button id="submit-btn" type="submit">Ask</button>
+    <!-- Chat interface -->
+    <section id="chat-ui" hidden>
+      <div id="messages" role="log" aria-live="polite" aria-label="conversation">
+        <div class="msg system" id="welcome-msg">
+          <p>Ask anything about the corpus — answers cite their sources,
+          and anything that can't be verified is labeled, not hidden.</p>
         </div>
+      </div>
+
+      <form id="composer" aria-label="ask a question">
+        <label class="visually-hidden" for="composer-input">Your question</label>
+        <textarea id="composer-input" name="query" rows="1" required
+                  maxlength="2000" autocomplete="off"
+                  placeholder="e.g. how does raft handle leader election"></textarea>
+        <button id="send-btn" type="submit">Send</button>
       </form>
-
-      <!-- Honest loading state: elapsed timer + cold-start truth -->
-      <div id="loading" class="panel" hidden>
-        <p>
-          <span class="spinner" aria-hidden="true"></span>
-          Working… <span id="elapsed">0s</span>
-        </p>
-        <p id="coldstart-note" class="fine" hidden>
-          This service runs on a free tier that sleeps when idle — the
-          first request after a quiet period can take up to ~2 minutes
-          while it wakes. Subsequent requests are fast.
-        </p>
-      </div>
-
-      <!-- Result -->
-      <article id="result" class="panel" hidden aria-live="polite">
-        <div id="status-banner" class="banner"></div>
-        <p id="answer"></p>
-        <div id="citations-block" hidden>
-          <h2 class="h-small">Sources</h2>
-          <ul id="citations"></ul>
-        </div>
-        <p class="fine">
-          <span id="cache-note" hidden>Served from cache (≤1 h old). </span>
-          <span id="request-id"></span>
-        </p>
-      </article>
-
-      <!-- Rate-limit / capacity wait state with real countdown -->
-      <div id="wait-panel" class="panel banner-warn" hidden role="status">
-        <p id="wait-message"></p>
-        <p>You can ask again in <strong id="countdown">–</strong>.</p>
-      </div>
-
-      <!-- Network / unexpected error with retry -->
-      <div id="error-panel" class="panel banner-error" hidden role="alert">
-        <p id="error-message"></p>
-        <button id="retry-btn" type="button">Try again</button>
-      </div>
+      <p class="fine composer-hint">
+        Enter to send · Shift+Enter for a new line ·
+        <span id="quota-hint"></span>
+      </p>
     </section>
   </main>
 

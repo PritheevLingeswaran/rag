@@ -1,6 +1,6 @@
-/* ragp frontend. No framework: one column, readable on a phone,
-   focus-visible everywhere, status conveyed by text + shape, never
-   color alone. */
+/* ragp frontend — chat layout (Stage 9.7, UX ported from SmartQA,
+   honesty rules from ragp). No framework. Light + dark via
+   prefers-color-scheme; status is text + shape, never color alone. */
 
 :root {
   --ink: #1a1d21;
@@ -15,18 +15,49 @@
   --ok-bg: #e8f2ec;
   --ok-line: #1e6f42;
   --panel-bg: #f7f8fa;
+  --bubble-user: #e7efff;
+  --page-bg: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #e6e9ee;
+    --muted: #9aa4b0;
+    --line: #3a4250;
+    --accent: #7ba3ff;
+    --accent-ink: #0d1220;
+    --warn-bg: #3a300f;
+    --warn-line: #d9a514;
+    --error-bg: #3d1f1c;
+    --error-line: #ff8a80;
+    --ok-bg: #16301f;
+    --ok-line: #58c088;
+    --panel-bg: #1b202a;
+    --bubble-user: #223252;
+    --page-bg: #0f131a;
+  }
 }
 
 * { box-sizing: border-box; }
+
+html, body { height: 100%; }
 
 body {
   margin: 0;
   font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
   color: var(--ink);
-  background: #fff;
+  background: var(--page-bg);
   display: flex;
   min-height: 100vh;
   flex-direction: column;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .skip-link {
@@ -40,7 +71,7 @@ body {
 
 header, main, footer {
   width: 100%;
-  max-width: 44rem;
+  max-width: 46rem;
   margin: 0 auto;
   padding: 0 1rem;
 }
@@ -50,7 +81,7 @@ header {
   align-items: center;
   justify-content: space-between;
   padding-top: 1rem;
-  padding-bottom: 1rem;
+  padding-bottom: 0.75rem;
 }
 
 .brand { font-weight: 700; font-size: 1.25rem; letter-spacing: 0.02em; }
@@ -58,10 +89,11 @@ header {
 #user-chip { display: inline-flex; align-items: center; gap: 0.5rem; }
 #user-avatar { border-radius: 50%; }
 
-main { flex: 1; padding-bottom: 2rem; }
+main { flex: 1; display: flex; flex-direction: column; padding-bottom: 1rem; }
+
+#chat-ui { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 
 h1 { font-size: 1.6rem; line-height: 1.25; }
-.h-small { font-size: 0.95rem; margin: 0.75rem 0 0.25rem; }
 
 .fine { font-size: 0.82rem; color: var(--muted); }
 .note { font-size: 0.9rem; }
@@ -71,55 +103,73 @@ button, .btn-primary {
   border: 1px solid var(--accent);
   background: var(--accent);
   color: var(--accent-ink);
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 0.5rem 1rem;
   cursor: pointer;
   text-decoration: none;
   display: inline-block;
 }
 button:disabled { opacity: 0.55; cursor: not-allowed; }
-#logout-btn, #retry-btn {
+#logout-btn, .msg button.ghost {
   background: transparent;
   color: var(--accent);
 }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
-label { display: block; font-weight: 600; margin-bottom: 0.35rem; }
+/* ---- conversation ---- */
 
-.input-row { display: flex; gap: 0.5rem; }
-.input-row input {
+#messages {
   flex: 1;
-  font: inherit;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  min-width: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.5rem 0 1rem;
 }
 
-.panel {
-  margin-top: 1rem;
-  padding: 1rem;
+.msg {
+  max-width: 92%;
+  padding: 0.7rem 0.9rem;
+  border-radius: 12px;
   border: 1px solid var(--line);
-  border-radius: 8px;
   background: var(--panel-bg);
 }
+.msg.user {
+  align-self: flex-end;
+  background: var(--bubble-user);
+  white-space: pre-wrap;
+}
+.msg.assistant { align-self: flex-start; }
+.msg.system { align-self: center; font-size: 0.9rem; color: var(--muted); }
+.msg.wait   { align-self: center; background: var(--warn-bg); border-color: var(--warn-line); color: var(--ink); }
+.msg.error  { align-self: center; background: var(--error-bg); border-color: var(--error-line); color: var(--ink); }
+
+.msg p { margin: 0.35rem 0; }
 
 .banner {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 600;
-  padding: 0.35rem 0.6rem;
+  padding: 0.25rem 0.55rem;
   border-radius: 6px;
   border: 1px solid var(--line);
   display: inline-block;
-  margin-bottom: 0.6rem;
+  margin-bottom: 0.35rem;
 }
-.banner.ok      { background: var(--ok-bg);    border-color: var(--ok-line); }
-.banner.degraded{ background: var(--warn-bg);  border-color: var(--warn-line); }
-.banner-warn    { background: var(--warn-bg);  border-color: var(--warn-line); }
-.banner-error   { background: var(--error-bg); border-color: var(--error-line); }
+.banner.ok       { background: var(--ok-bg);   border-color: var(--ok-line); }
+.banner.degraded { background: var(--warn-bg); border-color: var(--warn-line); }
 
-#citations { margin: 0.25rem 0 0; padding-left: 1.25rem; }
-#citations li { font-family: ui-monospace, monospace; font-size: 0.85rem; }
+.cite-marker {
+  font-family: ui-monospace, monospace;
+  font-size: 0.85em;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.sources { margin: 0.4rem 0 0; padding-left: 1.2rem; }
+.sources li { font-family: ui-monospace, monospace; font-size: 0.82rem; }
+.sources-label { font-size: 0.8rem; font-weight: 600; margin-top: 0.5rem; }
+
+.meta { font-size: 0.75rem; color: var(--muted); margin-top: 0.4rem; }
 
 .spinner {
   display: inline-block;
@@ -135,15 +185,38 @@ label { display: block; font-weight: 600; margin-bottom: 0.35rem; }
   .spinner { animation: none; border-top-color: var(--line); }
 }
 
+/* ---- composer ---- */
+
+#composer {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+  border-top: 1px solid var(--line);
+  padding-top: 0.75rem;
+}
+#composer textarea {
+  flex: 1;
+  font: inherit;
+  color: var(--ink);
+  background: var(--panel-bg);
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  resize: none;
+  min-width: 0;
+  max-height: 10rem;
+}
+.composer-hint { margin-top: 0.35rem; }
+
 footer {
-  padding-top: 1rem;
-  padding-bottom: 1.25rem;
+  padding-top: 0.75rem;
+  padding-bottom: 1.1rem;
   font-size: 0.82rem;
   color: var(--muted);
   border-top: 1px solid var(--line);
 }
+footer a, .fine a { color: inherit; }
 
 @media (max-width: 480px) {
-  .input-row { flex-direction: column; }
-  .input-row button { width: 100%; }
+  .msg { max-width: 100%; }
 }
