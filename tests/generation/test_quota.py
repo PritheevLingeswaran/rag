@@ -216,12 +216,12 @@ def test_system_at_rpm_boundary_serves_degraded_not_500():
     service = GenerationService(StubPipeline(), llm, quota_guard=guard)
 
     for i in range(guard.enforced_rpm):
-        result = service.answer(f"question {i}")
+        result = service.answer(f"token bucket refill question {i}")
         assert result.status == "ok"
         assert result.degraded is False
     assert llm.calls == guard.enforced_rpm  # 13 real generations
 
-    over = service.answer("question 14, the one over budget")
+    over = service.answer("token bucket question 14, over budget")
     assert over.status == "degraded_quota_throttled"   # labeled degraded
     assert over.degraded is True
     assert over.extra["throttle_reason"] == REASON_RPM
@@ -232,7 +232,7 @@ def test_system_at_rpm_boundary_serves_degraded_not_500():
     assert over.citations == ["doc::c0"]
 
     clock.advance(60)                                  # next minute
-    assert service.answer("recovered").status == "ok"
+    assert service.answer("token bucket recovered").status == "ok"
 
 
 def test_provider_429_and_proactive_throttle_are_distinct_statuses():
@@ -250,12 +250,12 @@ def test_provider_429_and_proactive_throttle_are_distinct_statuses():
 
     service = GenerationService(StubPipeline(), QuotaErrorLLM(),
                                 quota_guard=guard)
-    provider_rejected = service.answer("q1")
+    provider_rejected = service.answer("token bucket rate question one")
     assert provider_rejected.status == "degraded_quota"       # reactive
     assert provider_rejected.retry_after_s == 20.0
 
     # the 429 opened a cooldown: next request is throttled proactively,
     # with the distinct status and without touching the provider
-    throttled = service.answer("q2")
+    throttled = service.answer("token bucket rate question two")
     assert throttled.status == "degraded_quota_throttled"     # proactive
     assert throttled.extra["throttle_reason"] == REASON_COOLDOWN

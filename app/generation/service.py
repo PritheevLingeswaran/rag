@@ -54,7 +54,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from app.core.grounding import split_sentences
+from app.core.grounding import content_tokens, split_sentences
 from app.core.hybrid import HybridPipeline, RetrievedChunk
 from app.errors import (
     LLMAuthError,
@@ -230,6 +230,26 @@ class GenerationService:
                 rerank_status=rerank_info.status,
             )
         context = chunks[:self.max_context_chunks]
+
+        # Low-signal guard: retrieval always returns SOME nearest
+        # neighbor, so a greeting ("hi") used to get an unrelated chunk
+        # quoted at it by the extractive path, which has no judgment of
+        # its own. A query sharing zero content tokens with every
+        # retrieved chunk cannot be answered by quoting them: say so
+        # honestly (same ok_no_answer the LLM's IDK path uses) and spend
+        # no LLM quota. Real corpus questions overlap their sources
+        # lexically (enforced by the eval gate staying green).
+        query_tokens = set(content_tokens(query))
+        if query_tokens and not any(
+            query_tokens & set(content_tokens(c.text)) for c in context
+        ):
+            return GenerationResult(
+                query=query, answer="I don't know.",
+                status="ok_no_answer", degraded=False, citations=[],
+                retrieved_chunk_ids=[c.chunk_id for c in context],
+                retrieved_texts=[c.text for c in context],
+                rerank_status=rerank_info.status,
+            )
 
         if self.llm is None:
             return self._degraded(query, context, rerank_info.status,

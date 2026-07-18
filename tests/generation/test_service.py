@@ -79,7 +79,7 @@ def test_fabricated_sentence_is_stripped_status_partial():
         "A follower becomes a candidate and requests votes [1]. "
         "Raft clusters are limited to exactly 42 nodes maximum [2]."
     )
-    result = make_service(llm).answer("q")
+    result = make_service(llm).answer("what happens when a follower hears no heartbeat")
     assert result.status == "ok_partial_rejected"
     assert result.degraded is False
     assert "42" not in result.answer
@@ -88,13 +88,28 @@ def test_fabricated_sentence_is_stripped_status_partial():
 
 def test_fully_fabricated_answer_falls_back_to_extractive():
     llm = FakeLLM("Raft was invented by aliens in 1847 [1].")
-    result = make_service(llm).answer("q")
+    result = make_service(llm).answer("what happens when a follower hears no heartbeat")
     assert result.status == "degraded_citation_rejected"
     assert result.degraded is True
     # extractive fallback comes verbatim from the top retrieved chunk
     assert result.answer.startswith("A follower that hears no heartbeat")
     assert result.citations == ["raft::c0"]
     assert result.validation.all_rejected
+
+
+def test_low_signal_query_gets_honest_no_answer_not_a_random_quote():
+    """Regression (user-reported): 'hi' used to get the nearest-neighbor
+    chunk quoted at it by the extractive path. Zero content-token overlap
+    with every retrieved chunk => ok_no_answer, and the LLM is never
+    called (no quota spent on greetings)."""
+    llm = FakeLLM("should never be generated")
+    result = make_service(llm).answer("hi")
+    assert result.status == "ok_no_answer"
+    assert result.answer == "I don't know."
+    assert result.citations == []
+    assert result.degraded is False
+    assert llm.calls == 0
+    assert result.retrieved_chunk_ids  # transparency: retrieval did run
 
 
 # ---- LLM failure taxonomy: what the client receives ----
@@ -109,7 +124,7 @@ def test_fully_fabricated_answer_falls_back_to_extractive():
 def test_llm_failures_degrade_to_extractive_with_explicit_status(
     error, expected_status
 ):
-    result = make_service(FakeLLM(errors=[error])).answer("q")
+    result = make_service(FakeLLM(errors=[error])).answer("what happens when a follower hears no heartbeat")
     assert result.status == expected_status
     assert result.degraded is True
     assert result.answer.startswith("A follower that hears no heartbeat")
@@ -134,7 +149,7 @@ def test_primary_failure_served_by_fallback_as_ok():
                        model="fallback-model")
     service = GenerationService(StubPipeline(), primary,
                                 fallback_llm=fallback)
-    result = service.answer("q")
+    result = service.answer("what happens when a follower hears no heartbeat")
     assert result.status == "ok"
     assert result.degraded is False
     assert result.llm_model == "fallback-model"
@@ -150,7 +165,7 @@ def test_primary_quota_exhausted_served_by_fallback():
     service = GenerationService(StubPipeline(), primary,
                                 quota_guard=DenyingGuard(),
                                 fallback_llm=fallback)
-    result = service.answer("q")
+    result = service.answer("what happens when a follower hears no heartbeat")
     assert result.status == "ok"
     assert result.llm_model == "fallback-model"
     assert primary.calls == 0          # guard denied before the call
@@ -162,7 +177,7 @@ def test_both_providers_failing_degrades_with_primary_status():
     fallback = FakeLLM(errors=[LLMServerError("down"), LLMServerError("down")])
     service = GenerationService(StubPipeline(), primary,
                                 fallback_llm=fallback)
-    result = service.answer("q")
+    result = service.answer("what happens when a follower hears no heartbeat")
     assert result.status == "degraded_timeout"   # PRIMARY's failure, truthfully
     assert result.degraded is True
     assert result.answer.startswith("A follower that hears no heartbeat")
@@ -174,19 +189,19 @@ def test_fallback_guard_denial_degrades_like_no_fallback():
     service = GenerationService(StubPipeline(), primary,
                                 fallback_llm=fallback,
                                 fallback_quota_guard=DenyingGuard())
-    result = service.answer("q")
+    result = service.answer("what happens when a follower hears no heartbeat")
     assert result.status == "degraded_timeout"
     assert fallback.calls == 0
 
 
 def test_no_fallback_behavior_unchanged():
-    result = make_service(FakeLLM(errors=[LLMTimeoutError("slow")])).answer("q")
+    result = make_service(FakeLLM(errors=[LLMTimeoutError("slow")])).answer("what happens when a follower hears no heartbeat")
     assert result.status == "degraded_timeout"
 
 
 def test_quota_error_surfaces_retry_after():
     err = LLMQuotaError("quota", retry_after_s=42.0)
-    result = make_service(FakeLLM(errors=[err])).answer("q")
+    result = make_service(FakeLLM(errors=[err])).answer("what happens when a follower hears no heartbeat")
     assert result.retry_after_s == 42.0
 
 
@@ -195,14 +210,14 @@ def test_server_error_retried_once_then_succeeds():
         "An entry is committed once replicated on a majority of servers [2].",
         errors=[LLMServerError("blip")],
     )
-    result = make_service(llm).answer("q")
+    result = make_service(llm).answer("what happens when a follower hears no heartbeat")
     assert llm.calls == 2
     assert result.status == "ok"
 
 
 def test_server_error_twice_degrades():
     llm = FakeLLM(errors=[LLMServerError("down"), LLMServerError("down")])
-    result = make_service(llm).answer("q")
+    result = make_service(llm).answer("what happens when a follower hears no heartbeat")
     assert llm.calls == 2
     assert result.status == "degraded_llm_error"
     assert result.degraded is True
@@ -210,12 +225,12 @@ def test_server_error_twice_degrades():
 
 def test_quota_error_is_never_retried():
     llm = FakeLLM(errors=[LLMQuotaError("quota")])
-    make_service(llm).answer("q")
+    make_service(llm).answer("what happens when a follower hears no heartbeat")
     assert llm.calls == 1
 
 
 def test_no_llm_configured_serves_extractive_explicitly():
-    result = make_service(llm=None).answer("q")
+    result = make_service(llm=None).answer("what happens when a follower hears no heartbeat")
     assert result.status == "degraded_no_llm"
     assert result.degraded is True
     assert result.answer.startswith("A follower that hears no heartbeat")
@@ -224,14 +239,14 @@ def test_no_llm_configured_serves_extractive_explicitly():
 # ---- edge paths ----
 
 def test_no_retrieval_results():
-    result = make_service(FakeLLM("x"), StubPipeline(chunks=[])).answer("q")
+    result = make_service(FakeLLM("x"), StubPipeline(chunks=[])).answer("what happens when a follower hears no heartbeat")
     assert result.status == "no_results"
     assert result.citations == []
     assert "No relevant documents" in result.answer
 
 
 def test_idk_answer_passes_through_unvalidated():
-    result = make_service(FakeLLM("I don't know.")).answer("q")
+    result = make_service(FakeLLM("I don't know.")).answer("what happens when a follower hears no heartbeat")
     assert result.status == "ok_no_answer"
     assert result.answer == "I don't know."
     assert result.citations == []
@@ -240,5 +255,5 @@ def test_idk_answer_passes_through_unvalidated():
 def test_rerank_status_propagates_to_response():
     pipeline = StubPipeline(rerank_status="skipped_budget")
     llm = FakeLLM("A follower becomes a candidate and requests votes [1].")
-    result = make_service(llm, pipeline).answer("q")
+    result = make_service(llm, pipeline).answer("what happens when a follower hears no heartbeat")
     assert result.rerank_status == "skipped_budget"

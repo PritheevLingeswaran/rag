@@ -118,7 +118,7 @@ def test_llm_rpd_state2_breaker_trips_at_enforced_900(capture):
     llm = NeverCalledLLM()
     service = GenerationService(P(), llm, quota_guard=guard)
     clock.advance(60)
-    result = service.answer("q901")               # request 901 of the day
+    result = service.answer("grounded tokens q901")               # request 901 of the day
     assert result.status == "degraded_quota_throttled"   # labeled degrade
     assert result.degraded is True
     assert result.answer.startswith("Grounded text")     # still an answer
@@ -147,10 +147,10 @@ def test_llm_rpd_state3_past_provider_limit_429_absorbed(capture):
             raise LLMQuotaError("429 RESOURCE_EXHAUSTED", retry_after_s=30.0)
 
     service = GenerationService(P(), Provider429(), quota_guard=guard)
-    first = service.answer("q")
+    first = service.answer("grounded tokens question one")
     assert first.status == "degraded_quota"        # reactive, labeled
     assert first.retry_after_s == 30.0             # provider's own signal
-    second = service.answer("q2")                  # cooldown now active
+    second = service.answer("grounded tokens question two")                  # cooldown now active
     assert second.status == "degraded_quota_throttled"
     assert second.extra["throttle_reason"] == "provider_cooldown"
     # no exception escaped anywhere; both answers grounded + cited

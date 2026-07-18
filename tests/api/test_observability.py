@@ -195,7 +195,7 @@ def test_citation_and_llm_metrics_move_with_real_service():
     ok_before = counter_value(LLM_REQUESTS, outcome="ok")
     unsupported_before = counter_value(CITATION_SENTENCES,
                                        verdict="unsupported")
-    result = GenerationService(P(), FabricatingLLM()).answer("q")
+    result = GenerationService(P(), FabricatingLLM()).answer("how does the token bucket refill rate work")
     assert result.status == "ok_partial_rejected"
     assert counter_value(LLM_REQUESTS, outcome="ok") == ok_before + 1
     assert counter_value(
