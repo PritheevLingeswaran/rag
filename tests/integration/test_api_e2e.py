@@ -23,6 +23,16 @@ def real_client():
     import os
 
     os.environ["SERVE_PIPELINE"] = "true"
+    # Force the keyless scenario regardless of the developer's ambient env
+    # or .env file: a real GEMINI/GROQ key would flip serving to "ok" and
+    # break the degraded_no_llm assertions below. Empty string (not unset)
+    # so it also overrides .env; bootstrap's truthiness check treats it
+    # as keyless.
+    saved = {
+        k: os.environ.get(k) for k in ("GEMINI_API_KEY", "GROQ_API_KEY")
+    }
+    for k in saved:
+        os.environ[k] = ""
     from app.config import get_settings
 
     get_settings.cache_clear()
@@ -30,6 +40,11 @@ def real_client():
     with TestClient(app) as client:
         yield client
     os.environ["SERVE_PIPELINE"] = "false"
+    for k, v in saved.items():
+        if v is None:
+            os.environ.pop(k, None)
+        else:
+            os.environ[k] = v
     get_settings.cache_clear()
 
 
