@@ -14,7 +14,7 @@ from app.errors import (
 )  # noqa: F401 - all raised in the failure-taxonomy parametrize
 from app.core.hybrid import RerankInfo, RetrievedChunk
 from app.generation.llm_client import LLMResponse
-from app.generation.service import GenerationResult, GenerationService
+from app.generation.service import GenerationService
 
 CHUNKS = [
     RetrievedChunk(

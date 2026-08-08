@@ -93,7 +93,6 @@ def test_llm_rpd_state1_alert_at_80_percent(capture):
 
 
 def test_llm_rpd_state2_breaker_trips_at_enforced_900(capture):
-    from app.core.hybrid import RerankInfo, RetrievedChunk
     from app.generation.quota import QuotaGuard, load_model_limits
     from app.generation.service import GenerationService
 
@@ -101,6 +100,8 @@ def test_llm_rpd_state2_breaker_trips_at_enforced_900(capture):
     guard = QuotaGuard(load_model_limits("gemini-2.5-flash-lite"),
                        now_fn=clock, alerts=make_alerts(capture, clock))
     assert drive_guard(guard, clock, 900) == 900   # the enforced budget
+
+    from app.core.hybrid import RerankInfo, RetrievedChunk
 
     chunk = RetrievedChunk("d::c0", "Grounded text about tokens.", 1.0, "rerank")
 
@@ -334,7 +335,6 @@ def test_redis_state2b_end_to_end_request_still_serves(capture):
     cache misses, rate limit fails open, quota guard falls back local."""
     from fastapi.testclient import TestClient
 
-    from app.core.hybrid import RerankInfo, RetrievedChunk
     from app.generation.service import GenerationResult
     from app.main import create_app
 

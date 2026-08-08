@@ -58,8 +58,6 @@ def test_queries_stable_while_ingestion_writes_new_versions(
     version B. This test hammers searches on A while three new versions
     are written and GC'd next to it, asserting bit-identical results
     throughout -- and that A's files remain intact afterward."""
-    import faiss
-
     from app.core.dense import DenseIndex
     from app.ingest.faiss_store import FaissStore
 
