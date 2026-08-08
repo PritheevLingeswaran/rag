@@ -418,8 +418,22 @@ window.addEventListener("unhandledrejection", (e) => {
 
 /* ---------- auth cycle ---------- */
 
+/* Uploads are a dev/staging feature (production answers 403). Reveal the
+   composer's "+" only where it can actually work. Failure to determine
+   the environment leaves it hidden -- the safe direction. */
+async function revealUploadIfSupported() {
+  if (!els.uploadBtn) return;
+  try {
+    const health = await (await fetch("/health")).json();
+    els.uploadBtn.hidden = health.environment === "production";
+  } catch {
+    els.uploadBtn.hidden = true;
+  }
+}
+
 async function init() {
   if (runDemoIfRequested()) return;
+  revealUploadIfSupported();
   let resp;
   try {
     resp = await fetch("/auth/me");

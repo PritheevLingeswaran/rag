@@ -59,7 +59,10 @@
       </div>
 
       <form id="composer" aria-label="ask a question">
-        <button id="upload-btn" type="button" class="plus"
+        <!-- Hidden until /health confirms a non-production deployment:
+             uploads are dev-only (403 in production), and an affordance
+             that can only fail is worse than no affordance. -->
+        <button id="upload-btn" type="button" class="plus" hidden
                 title="Add a document to this session (.txt, .md, .pdf)"
                 aria-label="Add a document to this session">+</button>
         <input id="file-input" type="file" accept=".txt,.md,.pdf" hidden>
