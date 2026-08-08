@@ -308,8 +308,11 @@ async function runQuery(query, reAsk = false) {
     return;
   }
   if (resp.status === 429 && body) {
+    // Number(null) is 0 (not nullish), so ?? alone never reached the 60s
+    // default when both the body field and header were absent.
+    const headerRetry = Number(resp.headers.get("retry-after"));
     const secondsLeft = Math.ceil(
-      body.retry_after_s ?? Number(resp.headers.get("retry-after")) ?? 60
+      body.retry_after_s ?? (headerRetry > 0 ? headerRetry : 60)
     );
     const scope = (body.error || "").includes("daily")
       ? "You've used today's question allowance."

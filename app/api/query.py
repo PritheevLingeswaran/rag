@@ -83,6 +83,32 @@ def _cache_key(query_text: str, max_tokens: int | None) -> str:
     ).hexdigest()
 
 
+_LOCAL_CACHE_MAX_ENTRIES = 256
+
+
+def _local_cache_get(cache: dict, key: str, ttl_s: int) -> bytes | None:
+    """FIFO in-process cache for no-Redis deployments (dev/demo).
+    Entries are (stored_at, raw_json); expiry checked on read."""
+    import time as _time
+
+    entry = cache.get(key)
+    if entry is None:
+        return None
+    stored_at, raw = entry
+    if _time.time() - stored_at >= ttl_s:
+        cache.pop(key, None)
+        return None
+    return raw
+
+
+def _local_cache_set(cache: dict, key: str, raw: bytes) -> None:
+    import time as _time
+
+    if len(cache) >= _LOCAL_CACHE_MAX_ENTRIES:
+        cache.pop(next(iter(cache)))  # FIFO eviction
+    cache[key] = (_time.time(), raw)
+
+
 def _rate_limited(retry_after_s: int, scope: str) -> JSONResponse:
     return JSONResponse(
         status_code=429,
@@ -176,6 +202,28 @@ async def query(
         if cached_raw is None:
             CACHE_REQUESTS.labels(result="miss").inc()
     else:
+        # No Redis: the in-process cache serves the same contract (same
+        # key, same cacheable statuses, same TTL) for dev/demo deploys.
+        local_cache = getattr(request.app.state, "local_cache", None)
+        cached_raw = (
+            _local_cache_get(local_cache, cache_key, settings.cache_ttl_s)
+            if local_cache is not None else None
+        )
+        if cached_raw is not None:
+            import json as _json
+
+            try:
+                payload = _json.loads(cached_raw)
+                payload["cached"] = True
+                payload["request_id"] = request_id
+                cached_response = QueryResponse(**payload)
+            except Exception:
+                local_cache.pop(cache_key, None)
+            else:
+                CACHE_REQUESTS.labels(result="hit").inc()
+                logger.info("request_completed", outcome="cache_hit",
+                            status=payload.get("status"))
+                return cached_response
         CACHE_REQUESTS.labels(result="bypass").inc()
 
     admission = request.app.state.admission
@@ -213,18 +261,24 @@ async def query(
         request_id=request_id,
     )
 
-    if redis_store is not None and result.status in CACHEABLE_STATUSES:
+    if result.status in CACHEABLE_STATUSES:
         payload = response.model_dump()
         payload.pop("request_id", None)
         payload.pop("cached", None)
         import json as _json
 
-        await anyio.to_thread.run_sync(
-            functools.partial(
-                redis_store.cache_set, cache_key,
-                _json.dumps(payload).encode("utf-8"), settings.cache_ttl_s,
+        raw = _json.dumps(payload).encode("utf-8")
+        if redis_store is not None:
+            await anyio.to_thread.run_sync(
+                functools.partial(
+                    redis_store.cache_set, cache_key, raw,
+                    settings.cache_ttl_s,
+                )
             )
-        )
+        else:
+            local_cache = getattr(request.app.state, "local_cache", None)
+            if local_cache is not None:
+                _local_cache_set(local_cache, cache_key, raw)
 
     logger.info(
         "request_completed", outcome="served",

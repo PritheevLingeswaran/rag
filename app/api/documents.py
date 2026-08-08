@@ -137,6 +137,17 @@ def upload_document(request: Request, file: UploadFile):
     ]
 
     service.pipeline = _extend_pipeline(service.pipeline, chunks)
+    # The corpus just changed: every cached answer was computed against
+    # the OLD index and would hide the document the user just added.
+    local_cache = getattr(request.app.state, "local_cache", None)
+    if local_cache is not None:
+        local_cache.clear()
+    redis_store = getattr(request.app.state, "redis_store", None)
+    if redis_store is not None:
+        # No corpus-version namespace in the cache key yet, so a shared
+        # Redis cannot be invalidated safely from here; uploads are a
+        # dev/staging feature and prod refuses them above.
+        logger.warning("upload_left_redis_cache_stale", doc_id=doc_id)
     logger.info("document_uploaded", doc_id=doc_id,
                 chunks_added=len(chunks),
                 total_chunks=len(service.pipeline.chunk_texts))

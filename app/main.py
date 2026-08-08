@@ -51,6 +51,11 @@ async def lifespan(app: FastAPI):
     app.state.alerts = AlertManager(settings.alert_webhook_url)
 
     app.state.redis_store = None
+    # In-process response cache for deployments WITHOUT Redis (dev/demo):
+    # same cacheable-status contract as the Redis cache in app/api/query.py.
+    # Per-app (not module-global) so test apps never share entries.
+    # ponytail: plain dict + FIFO cap; Redis is the real cache in prod.
+    app.state.local_cache = {}
     if settings.redis_url:
         from app.storage.redis_store import RedisStore
 

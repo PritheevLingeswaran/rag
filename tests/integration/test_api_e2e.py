@@ -135,6 +135,18 @@ def test_uploaded_document_becomes_retrievable(real_client):
     assert any(cid.startswith("upload-zanzibar-notes") for cid in retrieved)
 
 
+def test_repeat_query_served_from_local_cache_without_redis(real_client):
+    """No-Redis deployments (dev/demo) get the in-process response cache:
+    an identical repeat query is a cache hit, flagged cached=true."""
+    q = {"query": "how does a bloom filter decide membership"}
+    first = real_client.post("/v1/query", json=q).json()
+    assert first["cached"] is False
+    second = real_client.post("/v1/query", json=q).json()
+    assert second["cached"] is True
+    assert second["answer"] == first["answer"]
+    assert second["status"] == first["status"]
+
+
 def test_upload_rejects_unsupported_type(real_client):
     resp = real_client.post(
         "/v1/documents",
