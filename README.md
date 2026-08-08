@@ -83,7 +83,7 @@ target (defaults set from CPU-throttled measurements, not laptop numbers:
 
 ## API serving & admission control (Stage 5)
 
-`POST /query` serves the full pipeline behind three ordered gates:
+`POST /v1/query` serves the full pipeline behind three ordered gates:
 API-key auth (401; anonymous only outside production), per-client Redis
 rate limiting (429 + Retry-After, fail-open on Redis outage), and a
 **bounded admission queue** (`app/api/admission.py`): at most
@@ -95,6 +95,36 @@ flat regardless of offered load; excess load is shed early and honestly.
 The empirically measured concurrency ceilings (local + 0.1-CPU
 container) are documented in `docs/stage5_admission.md`. Single-process
 by design — the 512MB cap cannot hold two model copies.
+
+### Response cache
+
+A repeat of an identical query is served from cache, spending no pipeline
+compute and no LLM quota — on this infrastructure the cache *is* capacity
+(Stage 2.5). Redis backs it where configured; deployments without Redis
+use an equivalent in-process cache with the same key, the same
+cacheable-status set (transient degradations are never replayed) and the
+same TTL. Cache keys are namespaced by a corpus version, so any corpus
+change makes prior entries unaddressable rather than stale. Measured:
+1.45 s → 0.007 s on a repeat query.
+
+## Web app & document upload (Stage 9.6–9.8)
+
+`frontend/` is a zero-dependency web app served same-origin (no CORS, no
+build step): Google sign-in, a chat surface, and a **retrieval trace** on
+every answer showing all retrieved chunks in rank order with the cited
+ones marked — the retriever's ranking next to the generator's usage.
+Every documented backend state has an explicit rendering; blank screens
+and raw console errors are defined as bugs.
+
+`POST /v1/documents` accepts a `.txt`/`.md`/`.pdf` and indexes it into
+the **live session** — chunked by the same corpus v1 paragraph rule, so
+an uploaded chunk cites exactly like a corpus chunk. It is deliberately
+**dev/staging only (403 in production)**: arbitrary writes to a shared
+corpus would invalidate the eval contract above, and the authorization
+model for that is unbuilt, so the feature is not pretended. Production
+ingestion remains the versioned CLI (`python -m app.ingest.cli`).
+Rebuilds run through the same admission controller as queries — it is
+the same CPU-bound work on the same core.
 
 ## Stage 0 skeleton
 
@@ -148,9 +178,16 @@ Every successful ingestion run produces an immutable version directory
 ## Layout
 
 ```
+app/                      application source
+  api/                    routes: query, documents, auth, health, admission
+  core/                   retrieval: bm25, dense, rrf, hybrid, grounding
+  generation/             LLM clients, quota guards, citation validation
+  ingest/                 versioned ingestion CLI + FAISS store
+  storage/                Postgres + Redis adapters
+frontend/                 zero-dependency web app (html/css/js, no build)
 data/corpus_v1.jsonl      versioned corpus
 eval/dataset_v1.jsonl     versioned eval queries + gold labels
 eval/run_eval.py          THE eval harness (stdlib-only)
 eval/results/             committed baseline + per-run results
-src/ragp/                 pipeline source
+docs/                     one design report per stage
 ```

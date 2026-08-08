@@ -147,6 +147,24 @@ def test_repeat_query_served_from_local_cache_without_redis(real_client):
     assert second["status"] == first["status"]
 
 
+def test_upload_invalidates_cached_answers(real_client):
+    """A cached answer was computed against the pre-upload index; after an
+    upload it must not be served, or the new document stays invisible."""
+    q = {"query": "what colour is the ceremonial kazoo of Blorptown"}
+    first = real_client.post("/v1/query", json=q).json()
+    assert real_client.post("/v1/query", json=q).json()["cached"] is True
+
+    resp = real_client.post("/v1/documents", files={"file": (
+        "blorptown.txt",
+        "The ceremonial kazoo of Blorptown is painted vermilion each spring.",
+        "text/plain")})
+    assert resp.status_code == 200
+
+    after = real_client.post("/v1/query", json=q).json()
+    assert after["cached"] is False           # stale entry unreachable
+    assert after["answer"] != first["answer"]  # the new document is seen
+
+
 def test_upload_rejects_unsupported_type(real_client):
     resp = real_client.post(
         "/v1/documents",

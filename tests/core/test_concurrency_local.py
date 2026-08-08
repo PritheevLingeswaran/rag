@@ -16,7 +16,6 @@ from concurrent.futures import ThreadPoolExecutor
 
 import httpx
 import numpy as np
-import pytest
 
 sys.setswitchinterval(1e-6)
 

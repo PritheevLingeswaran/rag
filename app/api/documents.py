@@ -16,12 +16,16 @@ uploaded chunks look and cite exactly like corpus chunks.
 
 from __future__ import annotations
 
+import functools
 import io
 import re
+import secrets
 
+import anyio
 from fastapi import APIRouter, Request, UploadFile
 from fastapi.responses import JSONResponse
 
+from app.api.admission import QueueFullError
 from app.config import get_settings
 from app.core.corpus import Chunk
 from app.logging_config import get_logger
@@ -85,7 +89,7 @@ def _extend_pipeline(old, new_chunks: list[Chunk]):
 
 
 @router.post("/v1/documents", tags=["documents"])
-def upload_document(request: Request, file: UploadFile):
+async def upload_document(request: Request, file: UploadFile):
     settings = get_settings()
     if settings.is_production:
         return JSONResponse(status_code=403, content={
@@ -99,7 +103,7 @@ def upload_document(request: Request, file: UploadFile):
         })
 
     filename = file.filename or "upload"
-    data = file.file.read()
+    data = await file.read()
     try:
         text = _extract_text(filename, data)
     except Exception:
@@ -136,18 +140,28 @@ def upload_document(request: Request, file: UploadFile):
         for i, para in enumerate(paragraphs)
     ]
 
-    service.pipeline = _extend_pipeline(service.pipeline, chunks)
+    # Re-embedding the corpus is the same CPU-bound work a query does, on
+    # the same single core: it goes through admission control, or a burst
+    # of uploads starves the query path the controller exists to protect.
+    try:
+        async with request.app.state.admission.admit():
+            service.pipeline = await anyio.to_thread.run_sync(
+                functools.partial(_extend_pipeline, service.pipeline, chunks)
+            )
+    except QueueFullError as exc:
+        return JSONResponse(status_code=503, content={
+            "error": "server at capacity; upload not queued",
+            "retry_after_s": exc.retry_after_s,
+        }, headers={"Retry-After": str(exc.retry_after_s)})
     # The corpus just changed: every cached answer was computed against
-    # the OLD index and would hide the document the user just added.
+    # the OLD index and would hide the document just added. Bumping the
+    # version re-namespaces the cache key, so stale entries can no longer
+    # be addressed -- correct for the local cache AND a shared Redis,
+    # which no single process could safely clear.
+    request.app.state.corpus_version = secrets.token_hex(8)
     local_cache = getattr(request.app.state, "local_cache", None)
     if local_cache is not None:
-        local_cache.clear()
-    redis_store = getattr(request.app.state, "redis_store", None)
-    if redis_store is not None:
-        # No corpus-version namespace in the cache key yet, so a shared
-        # Redis cannot be invalidated safely from here; uploads are a
-        # dev/staging feature and prod refuses them above.
-        logger.warning("upload_left_redis_cache_stale", doc_id=doc_id)
+        local_cache.clear()  # unreachable now, but don't leak the memory
     logger.info("document_uploaded", doc_id=doc_id,
                 chunks_added=len(chunks),
                 total_chunks=len(service.pipeline.chunk_texts))

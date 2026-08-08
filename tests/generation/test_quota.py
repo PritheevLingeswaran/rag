@@ -14,7 +14,6 @@ from app.errors import ConfigurationError, LLMQuotaError
 from app.generation.llm_client import LLMResponse
 from app.generation.quota import (
     REASON_COOLDOWN,
-    REASON_OK,
     REASON_RPD,
     REASON_RPM,
     QuotaGuard,

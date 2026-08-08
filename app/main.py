@@ -56,6 +56,9 @@ async def lifespan(app: FastAPI):
     # Per-app (not module-global) so test apps never share entries.
     # ponytail: plain dict + FIFO cap; Redis is the real cache in prod.
     app.state.local_cache = {}
+    # Namespaces cache entries to the index that produced them; bumped by
+    # any corpus mutation (see app/api/documents.py).
+    app.state.corpus_version = "0"
     if settings.redis_url:
         from app.storage.redis_store import RedisStore
 

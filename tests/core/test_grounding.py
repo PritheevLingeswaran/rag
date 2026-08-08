@@ -2,7 +2,6 @@
 definition. These pin the harness-contract semantics: any behavior
 change here invalidates eval comparability, so every edge is nailed."""
 
-import pytest
 
 from app.core.grounding import (
     GROUNDING_THRESHOLD,

@@ -74,12 +74,19 @@ CACHEABLE_STATUSES = frozenset(
 )
 
 
-def _cache_key(query_text: str, max_tokens: int | None) -> str:
+def _cache_key(query_text: str, max_tokens: int | None,
+               corpus_version: str = "0") -> str:
+    """corpus_version namespaces entries to the index that produced them:
+    when the corpus changes (an upload), previously cached answers can no
+    longer be served -- they were computed against an index that no longer
+    exists. Old entries simply stop matching and expire by TTL, which also
+    makes invalidation correct across a SHARED Redis with several workers,
+    where clearing another process's cache is not possible."""
     import hashlib
 
     normalized = " ".join(query_text.lower().split())
     return hashlib.sha256(
-        f"v1|{normalized}|{max_tokens}".encode("utf-8")
+        f"v1|{corpus_version}|{normalized}|{max_tokens}".encode("utf-8")
     ).hexdigest()
 
 
@@ -174,7 +181,8 @@ async def query(
 
     # Response cache: a hit spends no admission slot, no pipeline
     # compute, and no LLM quota (Stage 2.5: the cache IS capacity).
-    cache_key = _cache_key(body.query, body.max_tokens)
+    cache_key = _cache_key(body.query, body.max_tokens,
+                           getattr(request.app.state, "corpus_version", "0"))
     if redis_store is not None:
         cached_raw = await anyio.to_thread.run_sync(
             redis_store.cache_get, cache_key

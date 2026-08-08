@@ -10,7 +10,6 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 from fastapi.testclient import TestClient
 
-from app.core.hybrid import RerankInfo
 from app.generation.service import GenerationResult
 from app.main import create_app
 from app.storage.redis_store import RateLimitDecision
