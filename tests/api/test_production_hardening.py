@@ -89,6 +89,26 @@ def test_docs_get_a_scoped_csp_exception_not_a_weakened_policy():
         assert "cdn.jsdelivr.net" not in app_csp
 
 
+def test_frontend_assets_must_revalidate(monkeypatch):
+    """Without Cache-Control a browser heuristically reuses cached assets
+    without asking, so a deploy can render new HTML against old CSS."""
+    get_settings.cache_clear()
+    app = create_app()
+    with TestClient(app) as client:
+        for path in ("/", "/app/style.css", "/app/app.js"):
+            resp = client.get(path)
+            assert resp.status_code == 200, path
+            assert resp.headers["Cache-Control"] == "no-cache", path
+            assert resp.headers.get("ETag"), path  # 304s stay cheap
+
+
+def test_api_responses_are_not_given_frontend_cache_headers():
+    get_settings.cache_clear()
+    app = create_app()
+    with TestClient(app) as client:
+        assert "Cache-Control" not in client.get("/health").headers
+
+
 def test_hsts_only_in_production(monkeypatch):
     get_settings.cache_clear()
     with TestClient(create_app()) as dev:

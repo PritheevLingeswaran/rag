@@ -41,9 +41,23 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    """Browser-facing defenses. HSTS only in production: sending it from
-    a local http:// dev server would pin the browser to https for
-    localhost and break every other project on the same origin."""
+    """Browser-facing defenses and cache correctness.
+
+    HSTS only in production: sending it from a local http:// dev server
+    would pin the browser to https for localhost and break every other
+    project on the same origin.
+
+    Cache-Control on the frontend is not an optimisation, it is a
+    correctness fix. StaticFiles sends ETag and Last-Modified but no
+    Cache-Control, and with no explicit freshness a browser applies
+    HEURISTIC caching: it may reuse index.html / style.css / app.js
+    without revalidating at all. Observed consequence: after a deploy,
+    a returning visitor rendered the new HTML against the OLD
+    stylesheet -- a broken page that no amount of server-side
+    correctness could fix. 'no-cache' means "you may store it, but
+    revalidate before use", so the ETag still turns the common case
+    into a 304 with an empty body.
+    """
 
     _CSP = (
         "default-src 'self'; "
@@ -79,9 +93,11 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
         headers = response.headers
-        csp = (self._DOCS_CSP if request.url.path in self._DOCS_PATHS
-               else self._CSP)
+        path = request.url.path
+        csp = (self._DOCS_CSP if path in self._DOCS_PATHS else self._CSP)
         headers.setdefault("Content-Security-Policy", csp)
+        if path == "/" or path.startswith("/app"):
+            headers.setdefault("Cache-Control", "no-cache")
         headers.setdefault("X-Content-Type-Options", "nosniff")
         headers.setdefault("X-Frame-Options", "DENY")
         headers.setdefault("Referrer-Policy", "no-referrer")
