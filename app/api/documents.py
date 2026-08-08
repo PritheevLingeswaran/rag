@@ -22,10 +22,11 @@ import re
 import secrets
 
 import anyio
-from fastapi import APIRouter, Request, UploadFile
+from fastapi import APIRouter, Depends, Request, UploadFile
 from fastapi.responses import JSONResponse
 
 from app.api.admission import QueueFullError
+from app.api.deps import get_client_id
 from app.config import get_settings
 from app.core.corpus import Chunk
 from app.logging_config import get_logger
@@ -89,7 +90,12 @@ def _extend_pipeline(old, new_chunks: list[Chunk]):
 
 
 @router.post("/v1/documents", tags=["documents"])
-async def upload_document(request: Request, file: UploadFile):
+async def upload_document(request: Request, file: UploadFile,
+                          client_id: str = Depends(get_client_id)):
+    """Authenticated on the same terms as /v1/query. This endpoint MUTATES
+    the served index and spends real CPU, so it must never be an easier
+    target than the read path: staging carries API keys, and an unguarded
+    write endpoint there would let anyone reshape what the system answers."""
     settings = get_settings()
     if settings.is_production:
         return JSONResponse(status_code=403, content={

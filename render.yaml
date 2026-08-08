@@ -6,7 +6,11 @@ services:
     name: ragp
     runtime: docker
     plan: free
-    healthCheckPath: /health
+    # Readiness, not liveness: an instance that booted but has no pipeline
+    # can only produce 500s, and /health would report "ok" forever while
+    # it did. Safe to gate on because uvicorn accepts connections only
+    # after the lifespan (and thus the pipeline build) completes.
+    healthCheckPath: /health/ready
     autoDeploy: true
     envVars:
       - key: ENVIRONMENT

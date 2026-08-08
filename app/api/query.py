@@ -235,7 +235,19 @@ async def query(
         CACHE_REQUESTS.labels(result="bypass").inc()
 
     admission = request.app.state.admission
-    service = request.app.state.service
+    # A misconfigured instance (serving without a pipeline) must answer a
+    # clear 503, not an AttributeError -> 500 that also pages the operator
+    # on every single request. /health/ready reports the same condition so
+    # the platform can take the instance out of rotation.
+    service = getattr(request.app.state, "service", None)
+    if service is None:
+        ERRORS.labels(type="not_ready").inc()
+        logger.error("query_received_while_not_ready")
+        return JSONResponse(
+            status_code=503,
+            content={"error": "service not ready", "request_id": request_id},
+            headers={"Retry-After": "30"},
+        )
     import functools
 
     call = functools.partial(service.answer, body.query)

@@ -22,7 +22,11 @@ from fastapi.responses import JSONResponse
 from app import __version__
 from app.api.admission import AdmissionController
 from app.api.health import router as health_router
-from app.api.middleware import RequestIDMiddleware, RequestSizeLimitMiddleware
+from app.api.middleware import (
+    RequestIDMiddleware,
+    RequestSizeLimitMiddleware,
+    SecurityHeadersMiddleware,
+)
 from app.api.query import router as query_router
 from app.config import get_settings
 from app.errors import ConfigurationError
@@ -141,6 +145,9 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestSizeLimitMiddleware,
                        max_bytes=settings.max_request_bytes,
                        upload_max_bytes=settings.max_upload_bytes)
+    # Outside the size limit so even a 413 carries the headers.
+    app.add_middleware(SecurityHeadersMiddleware,
+                       is_production=settings.is_production)
     app.add_middleware(RequestIDMiddleware)
 
     # CORS: deny-by-default. Middleware is added only when origins are
