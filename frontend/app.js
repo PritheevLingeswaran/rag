@@ -26,7 +26,8 @@ const els = {
   landing: $("landing"), landingNote: $("landing-note"),
   chatUi: $("chat-ui"), messages: $("messages"),
   composer: $("composer"), input: $("composer-input"), send: $("send-btn"),
-  quotaHint: $("quota-hint"),
+  quotaHint: $("quota-hint"), suggestions: $("suggestions"),
+  uploadBtn: $("upload-btn"), fileInput: $("file-input"),
   userChip: $("user-chip"), userName: $("user-name"),
   userAvatar: $("user-avatar"), logoutBtn: $("logout-btn"),
 };
@@ -68,8 +69,13 @@ function showChat(profile) {
   els.chatUi.hidden = false;
   if (profile) {
     els.userName.textContent = profile.name || profile.email || "account";
-    if (profile.avatar_url) els.userAvatar.src = profile.avatar_url;
-    else els.userAvatar.removeAttribute("src");
+    if (profile.avatar_url) {
+      els.userAvatar.src = profile.avatar_url;
+      els.userAvatar.hidden = false;
+    } else {
+      els.userAvatar.removeAttribute("src");
+      els.userAvatar.hidden = true;   // no src => no broken-image box
+    }
     els.userChip.hidden = false;
   }
   els.input.focus();
@@ -135,10 +141,46 @@ function renderAssistant(data, container) {
     m.appendChild(ul);
   }
 
+  /* Retrieval trace: the ranked evidence ledger. Chunks the answer
+     actually cited are highlighted; the rest show what the retriever
+     considered and the reranker ordered. */
+  const retrieved = data.retrieved_chunk_ids || [];
+  if (retrieved.length) {
+    const trace = document.createElement("details");
+    trace.className = "trace";
+    const sum = document.createElement("summary");
+    sum.textContent = `Retrieval trace — ${retrieved.length} chunks ranked`;
+    trace.appendChild(sum);
+    const ol = el("ol", "trace-list");
+    const citedSet = new Set(cites);
+    retrieved.forEach((id) => {
+      const li = el("li", citedSet.has(id) ? "cited" : null, id);
+      if (citedSet.has(id)) li.appendChild(el("span", "cited-tag", "cited"));
+      ol.appendChild(li);
+    });
+    trace.appendChild(ol);
+    m.appendChild(trace);
+  }
+
   const metaBits = [];
+  if (data.rerank_status) metaBits.push(`rerank ${data.rerank_status}`);
+  if (data.__ms) metaBits.push(`${(data.__ms / 1000).toFixed(1)}s round trip`);
   if (data.cached) metaBits.push("served from cache (≤1 h old)");
   if (data.request_id) metaBits.push(`ref ${data.request_id}`);
   if (metaBits.length) m.appendChild(el("div", "meta", metaBits.join(" · ")));
+
+  if (data.answer && s !== "ok_no_answer" && s !== "no_results") {
+    const copy = el("button", "copy-btn", "Copy answer");
+    copy.type = "button";
+    copy.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(data.answer);
+        copy.textContent = "Copied ✓";
+        setTimeout(() => { copy.textContent = "Copy answer"; }, 1500);
+      } catch { /* clipboard unavailable (http, permissions) — button is best-effort */ }
+    });
+    m.appendChild(copy);
+  }
 
   if (s === "degraded_quota_throttled" && data.retry_after_s) {
     startCountdown(Math.ceil(data.retry_after_s),
@@ -231,9 +273,11 @@ async function runQuery(query, reAsk = false) {
   inFlight = true;
   lastQuery = query;
   els.send.disabled = true;
+  if (els.suggestions) els.suggestions.hidden = true;
   if (!reAsk) addMsg("user").textContent = query;
 
   const pending = pendingNode();
+  const t0 = performance.now();
 
   let resp;
   try {
@@ -250,6 +294,7 @@ async function runQuery(query, reAsk = false) {
 
   let body = null;
   try { body = await resp.json(); } catch { /* per-status below */ }
+  if (body) body.__ms = Math.round(performance.now() - t0);
 
   pending.stop();
   inFlight = false;
@@ -309,6 +354,54 @@ els.input.addEventListener("input", () => {
   els.input.style.height = `${Math.min(els.input.scrollHeight, 160)}px`;
 });
 
+/* ---------- document upload (dev-mode; session-scoped, and says so) ---------- */
+
+async function uploadDocument(f) {
+  const m = addMsg("system");
+  m.textContent = `Indexing ${f.name}…`;
+  const fd = new FormData();
+  fd.append("file", f);
+  let resp, body = null;
+  try {
+    resp = await fetch("/v1/documents", { method: "POST", body: fd });
+    try { body = await resp.json(); } catch { /* handled below */ }
+  } catch {
+    m.remove();
+    showErrorMsg("Upload failed — could not reach the server.");
+    return;
+  }
+  if (resp.ok && body) {
+    m.textContent =
+      `Added ${f.name} — ${body.chunks_added} chunk${body.chunks_added === 1 ? "" : "s"} ` +
+      "indexed for this session (resets on restart). Ask about it.";
+  } else {
+    m.remove();
+    showErrorMsg(
+      body && body.error
+        ? `Upload rejected: ${body.error}`
+        : "Upload failed — please try again."
+    );
+  }
+}
+
+if (els.uploadBtn && els.fileInput) {
+  els.uploadBtn.addEventListener("click", () => els.fileInput.click());
+  els.fileInput.addEventListener("change", () => {
+    const f = els.fileInput.files[0];
+    els.fileInput.value = "";
+    if (f) uploadDocument(f);
+  });
+}
+
+if (els.suggestions) {
+  els.suggestions.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-q]");
+    if (!b || inFlight) return;
+    els.input.value = b.dataset.q;
+    els.composer.requestSubmit();
+  });
+}
+
 els.logoutBtn.addEventListener("click", async () => {
   try { await fetch("/auth/logout", { method: "POST" }); } catch { /* still leave */ }
   showLanding("Signed out.");
@@ -350,7 +443,7 @@ async function init() {
 /* ---------- state gallery (#demo:<name>) ---------- */
 
 const DEMO = {
-  ok: { answer: "In Raft, time is divided into terms, and each term begins with a leader election [1]. A candidate wins by collecting votes from a majority of the cluster [1].", status: "ok", citations: ["raft::c0"], request_id: "demo0000ok", cached: false },
+  ok: { answer: "In Raft, time is divided into terms, and each term begins with a leader election [1]. A candidate wins by collecting votes from a majority of the cluster [1].", status: "ok", citations: ["raft::c0"], retrieved_chunk_ids: ["raft::c0", "raft::c1", "paxos::c1", "quorum::c0"], rerank_status: "full", request_id: "demo0000ok", cached: false, __ms: 1240 },
   partial: { answer: "In Raft, time is divided into terms, and each term begins with a leader election [1].", status: "ok_partial_rejected", citations: ["raft::c0"], request_id: "demo0partial", cached: false },
   throttled: { answer: "Raft is a consensus algorithm designed to be easier to understand than Paxos. In Raft, time is divided into terms, and each term begins with a leader election.", status: "degraded_quota_throttled", citations: ["raft::c0"], retry_after_s: 7200, request_id: "demo0throt", cached: false },
   degraded: { answer: "Raft is a consensus algorithm designed to be easier to understand than Paxos. In Raft, time is divided into terms, and each term begins with a leader election.", status: "degraded_no_llm", citations: ["raft::c0"], request_id: "demo0degr", cached: true },

@@ -131,7 +131,8 @@ def create_app() -> FastAPI:
     # Middleware (outermost first): request-id wraps everything so even
     # size-limit rejections carry an id; size limit runs before routing.
     app.add_middleware(RequestSizeLimitMiddleware,
-                       max_bytes=settings.max_request_bytes)
+                       max_bytes=settings.max_request_bytes,
+                       upload_max_bytes=settings.max_upload_bytes)
     app.add_middleware(RequestIDMiddleware)
 
     # CORS: deny-by-default. Middleware is added only when origins are
@@ -222,6 +223,10 @@ def create_app() -> FastAPI:
 
     app.include_router(health_router)
     app.include_router(query_router)
+
+    from app.api.documents import router as documents_router
+
+    app.include_router(documents_router)
 
     from app.api.auth import router as auth_router
 

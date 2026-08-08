@@ -9,7 +9,9 @@
 <body>
   <a class="skip-link" href="#composer-input">Skip to question box</a>
   <header>
-    <span class="brand">ragp</span>
+    <span class="brand">ragp
+      <span class="tagline">cited answers · systems corpus</span>
+    </span>
     <nav aria-label="account">
       <span id="user-chip" hidden>
         <img id="user-avatar" alt="" width="24" height="24" referrerpolicy="no-referrer">
@@ -49,7 +51,18 @@
         </div>
       </div>
 
+      <div id="suggestions" class="chips" aria-label="example questions">
+        <button type="button" class="chip" data-q="how does raft elect a leader">raft leader election</button>
+        <button type="button" class="chip" data-q="what does the CAP theorem say about partitions">CAP theorem</button>
+        <button type="button" class="chip" data-q="how does a bloom filter decide membership">bloom filters</button>
+        <button type="button" class="chip" data-q="why use consistent hashing for sharding">consistent hashing</button>
+      </div>
+
       <form id="composer" aria-label="ask a question">
+        <button id="upload-btn" type="button" class="plus"
+                title="Add a document to this session (.txt, .md, .pdf)"
+                aria-label="Add a document to this session">+</button>
+        <input id="file-input" type="file" accept=".txt,.md,.pdf" hidden>
         <label class="visually-hidden" for="composer-input">Your question</label>
         <textarea id="composer-input" name="query" rows="1" required
                   maxlength="2000" autocomplete="off"

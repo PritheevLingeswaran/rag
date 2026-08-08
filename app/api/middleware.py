@@ -35,12 +35,19 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
 
 
 class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app, max_bytes: int) -> None:
+    def __init__(self, app, max_bytes: int,
+                 upload_max_bytes: int | None = None) -> None:
         super().__init__(app)
         self.max_bytes = max_bytes
+        # The upload route carries whole documents; every other route
+        # keeps the tight query-sized cap.
+        self.upload_max_bytes = upload_max_bytes or max_bytes
 
     async def dispatch(self, request: Request, call_next):
         if request.method in ("POST", "PUT", "PATCH"):
+            limit = (self.upload_max_bytes
+                     if request.url.path == "/v1/documents"
+                     else self.max_bytes)
             length = request.headers.get("content-length")
             if length is None:
                 return JSONResponse(
@@ -54,12 +61,12 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
                     status_code=400,
                     content={"error": "invalid Content-Length"},
                 )
-            if n > self.max_bytes:
+            if n > limit:
                 return JSONResponse(
                     status_code=413,
                     content={
                         "error": "request body too large",
-                        "max_bytes": self.max_bytes,
+                        "max_bytes": limit,
                     },
                 )
         return await call_next(request)

@@ -107,6 +107,10 @@ class Settings(BaseSettings):
     # production by create_app.
     cors_origins: str | None = None
     max_request_bytes: int = 16_384
+    # Dev-mode document upload (Stage 9.8): /v1/documents only. Kept
+    # separate from max_request_bytes so query-path abuse limits stay
+    # tight while a PDF still fits.
+    max_upload_bytes: int = 2_000_000
 
     # Response cache (Stage 2.5 capacity math: cache hits spend no LLM
     # quota and no pipeline compute -- on this infra the cache IS

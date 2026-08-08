@@ -28,6 +28,10 @@ psutil==7.2.2
 tzdata==2026.3
 prometheus_client==0.25.0
 
+# dev-mode document upload (Stage 9.8): multipart parsing + PDF text
+python-multipart==0.0.32
+pypdf==6.15.0
+
 # -- test/dev only --
 pytest==9.1.1           # PYSEC-2026-1845
 pytest-cov==7.1.0

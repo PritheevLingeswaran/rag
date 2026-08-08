@@ -110,6 +110,39 @@ def test_query_with_no_lexical_overlap_still_answers(real_client):
     assert body["answer"]
 
 
+def test_uploaded_document_becomes_retrievable(real_client):
+    """Dev-mode upload (Stage 9.8): a .txt file's chunks join the live
+    session index and are retrieved for a matching query."""
+    # CRLF on purpose: Windows-authored files must chunk identically.
+    content = (
+        "The Zanzibar quorum festival protocol uses vuvuzela consensus.\r\n\r\n"
+        "Vuvuzela consensus requires seventeen drummers to agree."
+    )
+    resp = real_client.post(
+        "/v1/documents",
+        files={"file": ("zanzibar-notes.txt", content, "text/plain")},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["doc_id"] == "upload-zanzibar-notes"
+    assert body["chunks_added"] == 2
+
+    q = real_client.post(
+        "/v1/query", json={"query": "what does the vuvuzela consensus require"}
+    )
+    assert q.status_code == 200
+    retrieved = q.json()["retrieved_chunk_ids"]
+    assert any(cid.startswith("upload-zanzibar-notes") for cid in retrieved)
+
+
+def test_upload_rejects_unsupported_type(real_client):
+    resp = real_client.post(
+        "/v1/documents",
+        files={"file": ("evil.exe", b"MZ\x90\x00", "application/octet-stream")},
+    )
+    assert resp.status_code == 415
+
+
 def test_empty_corpus_fails_loudly_at_build_not_at_runtime(tmp_path):
     """'Empty index' policy: an empty corpus is refused at BUILD time
     (fail-loud) so a serving process can never exist with an empty
