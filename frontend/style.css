@@ -1,48 +1,75 @@
-/* ragp frontend — "audit ledger" identity (Stage 9.8 visual pass).
-   Subject: verifiable retrieval. Voice = academic serif (the world of
-   cited papers), body = quiet sans, evidence = monospace. One accent:
-   citation amber, the highlighter on a printed page. Status colors
-   (verified green / degraded ember) appear ONLY in banners — status is
-   always text + shape, never color alone. No framework, no webfonts. */
+/* ragp frontend — Stage 9.10 app shell.
+ *
+ * Structure follows the conventions people already know from ChatGPT and
+ * Claude (sidebar, centred empty state, pill composer, full-width
+ * assistant turns) because familiarity is the point of a chat surface.
+ * The IDENTITY stays ragp's: serif brand, monospace for anything the
+ * system asserts as evidence, one accent (citation amber). Status is
+ * always text + shape, never colour alone.
+ *
+ * No inline style anywhere: the CSP is 'style-src self' with no
+ * unsafe-inline (Stage 9.9), which this file is what makes possible.
+ */
 
 :root {
-  --page-bg: #fdfbf7;
-  --panel-bg: #f4f1ea;
-  --ink: #1f2126;
-  --muted: #6b6f78;
-  --line: #ddd8cd;
-  --accent: #a06c10;        /* citation amber, ink-on-paper strength */
-  --accent-soft: #f3e6c8;
+  color-scheme: light dark;
+
+  --bg: #ffffff;
+  --bg-side: #f7f7f5;
+  --bg-raise: #f2f2ef;
+  --bg-input: #ffffff;
+  --ink: #1d1d1b;
+  --ink-soft: #55554f;
+  --muted: #78786f;
+  --line: #e3e3dd;
+  --line-soft: #eeeee9;
+  --accent: #b0740f;
+  --accent-soft: #fbf2e0;
   --accent-ink: #ffffff;
-  --ok-bg: #eaf3ec;   --ok-line: #23744a;   --ok-ink: #1c5c3b;
-  --warn-bg: #f9f0da; --warn-line: #a3720a; --warn-ink: #7c5708;
-  --error-bg: #f9e9e4; --error-line: #a8402a; --error-ink: #8a3522;
+  --ok-ink: #1c6b45;
+  --warn-ink: #8a5d06;
+  --error-bg: #fdf0ec;
+  --error-line: #c1543a;
+  --error-ink: #8f3a24;
+  --user-bubble: #f2f2ef;
+
   --serif: Georgia, "Times New Roman", ui-serif, serif;
-  --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
-  --mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+
+  --col: 46rem;          /* the reading column, as in every chat UI */
+  --side-w: 16.5rem;
+  --radius: 14px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --page-bg: #101217;
-    --panel-bg: #181b22;
-    --ink: #e8e6e1;
-    --muted: #8e93a0;
-    --line: #2c313c;
-    --accent: #d9a441;
-    --accent-soft: #2e2617;
-    --accent-ink: #14161b;
-    --ok-bg: #14251b;   --ok-line: #3f8f63;   --ok-ink: #8fd0ab;
-    --warn-bg: #2b2310; --warn-line: #b98c22; --warn-ink: #e2bc66;
-    --error-bg: #2f1c16; --error-line: #c26a50; --error-ink: #e59a82;
+    --bg: #17181b;
+    --bg-side: #131417;
+    --bg-raise: #212328;
+    --bg-input: #212328;
+    --ink: #ecebe7;
+    --ink-soft: #c3c2bc;
+    --muted: #8e8f89;
+    --line: #2e3036;
+    --line-soft: #26282d;
+    --accent: #dda94a;
+    --accent-soft: #2b2418;
+    --accent-ink: #17181b;
+    --ok-ink: #74c79b;
+    --warn-ink: #d8a94f;
+    --error-bg: #2e1c17;
+    --error-line: #b8583c;
+    --error-ink: #e79b81;
+    --user-bubble: #262930;
   }
 }
 
 * { box-sizing: border-box; }
 
-/* The hidden attribute must ALWAYS win: author display rules (e.g.
-   #chat-ui{display:flex}) silently override the UA's [hidden] style —
-   this exact conflict shipped the composer to logged-out production. */
+/* The hidden attribute must ALWAYS win: author display rules silently
+   override the UA's [hidden] style — this exact conflict once shipped the
+   composer to logged-out production. */
 [hidden] { display: none !important; }
 
 html, body { height: 100%; }
@@ -51,10 +78,8 @@ body {
   margin: 0;
   font: 16px/1.6 var(--sans);
   color: var(--ink);
-  background: var(--page-bg);
-  display: flex;
-  min-height: 100vh;
-  flex-direction: column;
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
 }
 
 .visually-hidden {
@@ -70,314 +95,524 @@ body {
   left: -9999px;
   background: var(--accent);
   color: var(--accent-ink);
-  padding: 0.5rem 1rem;
+  padding: .5rem 1rem;
+  border-radius: 8px;
+  z-index: 40;
 }
-.skip-link:focus { left: 0.5rem; top: 0.5rem; z-index: 10; }
+.skip-link:focus { left: .5rem; top: .5rem; }
 
-header, main, footer {
-  width: 100%;
-  max-width: 48rem;
-  margin: 0 auto;
-  padding: 0 1.25rem;
-}
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* Large displays: scale the whole ledger up a notch instead of leaving
-   a narrow column adrift in empty space. (On html, not body: rem widths
-   below read the ROOT font-size.) */
-@media (min-width: 1600px) {
-  html { font-size: 17.5px; }
-  header, main, footer { max-width: 54rem; }
-}
+.fine { font-size: .8rem; color: var(--muted); }
+.fine a, .composer-hint a { color: inherit; }
 
-/* ---- header: nameplate, like a journal masthead ---- */
+/* ───────────────────────── shell ───────────────────────── */
 
-header {
+#shell {
   display: flex;
-  align-items: baseline;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ───────────────────────── sidebar ───────────────────────── */
+
+#sidebar {
+  width: var(--side-w);
+  flex: none;
+  background: var(--bg-side);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  padding: .75rem;
+  gap: .75rem;
+}
+#shell.side-hidden #sidebar { display: none; }
+
+.side-top {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  padding-top: 1.4rem;
-  padding-bottom: 1rem;
-  border-bottom: 2px solid var(--ink);
+  padding: .15rem .25rem;
 }
 
 .brand {
   font-family: var(--serif);
+  font-size: 1.3rem;
   font-weight: 700;
-  font-size: 1.55rem;
-  letter-spacing: 0.01em;
-}
-.brand .tagline {
-  display: block;
-  font-family: var(--sans);
-  font-weight: 400;
-  font-size: 0.78rem;
-  color: var(--muted);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  margin-top: 0.15rem;
+  letter-spacing: .01em;
 }
 
-#user-chip { display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; }
-#user-avatar { border-radius: 50%; }
-
-main { flex: 1; display: flex; flex-direction: column; padding-bottom: 1rem; }
-
-#chat-ui { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-
-h1 { font-family: var(--serif); font-size: 1.9rem; line-height: 1.2; font-weight: 700; }
-
-.fine { font-size: 0.8rem; color: var(--muted); }
-.note { font-size: 0.9rem; }
-
-button, .btn-primary {
+.icon-btn {
   font: inherit;
-  border: 1px solid var(--accent);
-  background: var(--accent);
-  color: var(--accent-ink);
-  border-radius: 6px;
-  padding: 0.5rem 1rem;
-  cursor: pointer;
-  text-decoration: none;
-  display: inline-block;
-}
-button:disabled { opacity: 0.55; cursor: not-allowed; }
-#logout-btn, .msg button.ghost {
+  line-height: 1;
   background: transparent;
-  color: var(--accent);
+  border: 1px solid transparent;
+  color: var(--muted);
+  border-radius: 8px;
+  padding: .35rem .5rem;
+  cursor: pointer;
 }
-#logout-btn { border-color: var(--line); color: var(--muted); padding: 0.25rem 0.7rem; font-size: 0.85rem; }
-:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.icon-btn:hover { background: var(--bg-raise); color: var(--ink); }
 
-/* ---- conversation ---- */
+.new-chat {
+  font: inherit;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: .55rem .7rem;
+  cursor: pointer;
+}
+.new-chat:hover { background: var(--bg-raise); }
+.plus-glyph { font-family: var(--mono); color: var(--accent); }
+
+.threads { flex: 1; overflow-y: auto; min-height: 0; }
+.side-label {
+  font-size: .7rem;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: .5rem .35rem .25rem;
+}
+#thread-list { list-style: none; margin: 0; padding: 0; }
+#thread-list button {
+  font: inherit;
+  font-size: .875rem;
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  color: var(--ink-soft);
+  padding: .4rem .55rem;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#thread-list button:hover { background: var(--bg-raise); color: var(--ink); }
+#thread-list li.active button {
+  background: var(--bg-raise);
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.side-foot { border-top: 1px solid var(--line); padding-top: .7rem; }
+
+.google-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .6rem;
+  font-size: .9rem;
+  font-weight: 500;
+  text-decoration: none;
+  color: var(--ink);
+  background: var(--bg-input);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: .6rem .8rem;
+}
+.google-btn:hover { background: var(--bg-raise); }
+.google-btn[aria-disabled="true"] { opacity: .55; pointer-events: none; }
+.g-mark { width: 17px; height: 17px; flex: none; }
+#auth-note { margin: .5rem .15rem 0; }
+
+#account-in { display: flex; align-items: center; gap: .55rem; }
+#user-avatar { border-radius: 50%; flex: none; }
+.acct-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.acct-text > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#user-name { font-size: .875rem; font-weight: 500; }
+#logout-btn {
+  font: inherit;
+  font-size: .78rem;
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  border-radius: 8px;
+  padding: .25rem .5rem;
+  cursor: pointer;
+}
+#logout-btn:hover { color: var(--ink); border-color: var(--muted); }
+
+#scrim { display: none; }
+
+/* ───────────────────────── main column ───────────────────────── */
+
+#main-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+#topbar {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  padding: .6rem 1rem;
+  border-bottom: 1px solid var(--line-soft);
+  flex: none;
+}
+#sidebar-open { display: none; }
+#shell.side-hidden #sidebar-open { display: inline-flex; }
+#thread-title {
+  font-size: .9rem;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chip-env {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: .68rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: .1rem .5rem;
+}
+
+#main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+/* Empty state is CENTRED in the remaining space — a wide screen opens on
+   an intentional composition instead of a stripe of text above a void. */
+#empty-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  overflow-y: auto;
+}
+.hero { width: 100%; max-width: var(--col); text-align: center; }
+.hero h1 {
+  font-family: var(--serif);
+  font-size: clamp(1.9rem, 3.4vw, 2.6rem);
+  line-height: 1.15;
+  margin: 0 0 .6rem;
+  font-weight: 700;
+}
+.hero-sub {
+  color: var(--ink-soft);
+  font-size: 1rem;
+  margin: 0 auto 1.9rem;
+  max-width: 34rem;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .7rem;
+  text-align: left;
+}
+.card {
+  font: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: .85rem .95rem;
+  cursor: pointer;
+  color: var(--ink);
+}
+.card:hover { background: var(--bg-raise); border-color: var(--muted); }
+.card-q { font-size: .92rem; line-height: 1.35; }
+.card-tag {
+  font-family: var(--mono);
+  font-size: .68rem;
+  color: var(--muted);
+  letter-spacing: .03em;
+}
+
+/* ───────────────────────── transcript ───────────────────────── */
 
 #messages {
   flex: 1;
   overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 1.1rem;
-  padding: 1.25rem 0 1rem;
+  padding: 1.5rem 1.25rem 1rem;
+  scroll-behavior: smooth;
+}
+@media (prefers-reduced-motion: reduce) {
+  #messages { scroll-behavior: auto; }
 }
 
-.msg { max-width: 100%; }
+.msg {
+  width: 100%;
+  max-width: var(--col);
+  margin: 0 auto 1.6rem;
+}
+.msg:last-child { margin-bottom: .5rem; }
 
 @media (prefers-reduced-motion: no-preference) {
-  .msg { animation: rise 0.25s ease-out; }
+  .msg { animation: rise .22s ease-out; }
   @keyframes rise {
-    from { opacity: 0; transform: translateY(6px); }
+    from { opacity: 0; transform: translateY(5px); }
     to   { opacity: 1; transform: none; }
   }
 }
 
-/* User question: a marginal note, right-set, serif italic — the
-   reader's query written in the margin of the ledger. */
+/* user turn: right-aligned bubble, as in every modern chat client */
 .msg.user {
-  align-self: flex-end;
+  display: flex;
+  justify-content: flex-end;
+}
+.msg.user > .bubble {
+  background: var(--user-bubble);
+  border-radius: 16px 16px 4px 16px;
+  padding: .6rem .9rem;
   max-width: 85%;
-  font-family: var(--serif);
-  font-style: italic;
-  font-size: 1.05rem;
   white-space: pre-wrap;
-  padding: 0.55rem 0.9rem;
-  border-right: 3px solid var(--accent);
-  background: var(--panel-bg);
-  border-radius: 6px 2px 2px 6px;
 }
 
-/* Assistant answer: a ledger entry — flush left, ruled, no bubble. */
-.msg.assistant {
-  align-self: stretch;
-  border-left: 3px solid var(--line);
-  padding: 0.15rem 0 0.15rem 1rem;
-}
-
-.msg.system {
-  align-self: center;
-  font-size: 0.85rem;
+/* assistant turn: full column width, labelled, no bubble */
+.msg.assistant .who {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  font-size: .78rem;
   color: var(--muted);
+  margin-bottom: .45rem;
+}
+.who .dot {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-family: var(--serif);
+  font-size: .75rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.msg.assistant p { margin: .4rem 0; }
+.msg.assistant > p { font-size: 1.02rem; color: var(--ink); }
+
+.msg.system, .msg.wait, .msg.error {
+  max-width: var(--col);
+  font-size: .875rem;
   text-align: center;
-  max-width: 34rem;
+  color: var(--muted);
 }
 .msg.wait, .msg.error {
-  align-self: center;
-  padding: 0.7rem 1rem;
-  border-radius: 8px;
-  border: 1px solid;
-  max-width: 34rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: .75rem 1rem;
+  text-align: left;
 }
-.msg.wait  { background: var(--warn-bg);  border-color: var(--warn-line);  color: var(--warn-ink); }
-.msg.error { background: var(--error-bg); border-color: var(--error-line); color: var(--error-ink); }
+.msg.error {
+  background: var(--error-bg);
+  border-color: var(--error-line);
+  color: var(--error-ink);
+}
 
-.msg p { margin: 0.4rem 0; }
-.msg.assistant > p { font-size: 1.02rem; }
-
-/* Status banner: an eyebrow, not a badge — small caps, ruled under. */
+/* status eyebrow */
 .banner {
   display: block;
-  font-size: 0.72rem;
+  font-size: .7rem;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: .08em;
   text-transform: uppercase;
-  padding: 0 0 0.35rem;
-  margin-bottom: 0.2rem;
-  border-bottom: 1px solid var(--line);
+  padding-bottom: .3rem;
+  margin-bottom: .25rem;
+  border-bottom: 1px solid var(--line-soft);
 }
-.banner.ok       { color: var(--ok-ink); }
+.banner.ok { color: var(--ok-ink); }
 .banner.degraded { color: var(--warn-ink); }
 
 .cite-marker {
   font-family: var(--mono);
-  font-size: 0.82em;
-  color: var(--accent);
+  font-size: .82em;
   font-weight: 700;
-  padding: 0 0.1em;
+  color: var(--accent);
+  padding: 0 .1em;
 }
 
 .sources-label {
-  font-size: 0.72rem;
+  font-size: .7rem;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: .08em;
   text-transform: uppercase;
   color: var(--muted);
-  margin-top: 0.7rem;
+  margin-top: .8rem;
 }
-.sources { margin: 0.25rem 0 0; padding-left: 1.2rem; }
-.sources li { font-family: var(--mono); font-size: 0.82rem; }
+.sources { margin: .25rem 0 0; padding-left: 1.15rem; }
+.sources li { font-family: var(--mono); font-size: .82rem; }
 
-/* Retrieval trace — the signature: a ranked evidence ledger. */
 .trace {
-  margin-top: 0.7rem;
+  margin-top: .75rem;
   border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--panel-bg);
-  font-size: 0.82rem;
+  border-radius: 10px;
+  background: var(--bg-side);
+  font-size: .82rem;
 }
 .trace summary {
   cursor: pointer;
-  padding: 0.45rem 0.8rem;
-  font-weight: 600;
+  padding: .5rem .8rem;
+  font-weight: 500;
   color: var(--muted);
-  letter-spacing: 0.02em;
   list-style-position: inside;
 }
 .trace[open] summary { border-bottom: 1px solid var(--line); }
-.trace-list {
-  margin: 0;
-  padding: 0.5rem 0.8rem 0.6rem 2.4rem;
-  font-family: var(--mono);
-}
-.trace-list li { padding: 0.1rem 0; color: var(--muted); }
+.trace-list { margin: 0; padding: .55rem .8rem .6rem 2.4rem; font-family: var(--mono); }
+.trace-list li { padding: .1rem 0; color: var(--muted); }
 .trace-list li.cited { color: var(--ink); }
 .trace-list li.cited::marker { color: var(--accent); }
 .cited-tag {
   color: var(--accent);
-  font-size: 0.9em;
+  font-size: .9em;
   border: 1px solid var(--accent);
   border-radius: 4px;
-  padding: 0 0.3em;
-  margin-left: 0.5em;
+  padding: 0 .3em;
+  margin-left: .5em;
 }
 
 .meta {
   font-family: var(--mono);
-  font-size: 0.72rem;
+  font-size: .72rem;
   color: var(--muted);
-  margin-top: 0.55rem;
+  margin-top: .6rem;
 }
 
 .msg button.ghost, .copy-btn {
-  font-size: 0.8rem;
-  padding: 0.25rem 0.7rem;
-  margin-top: 0.5rem;
+  font: inherit;
+  font-size: .78rem;
+  padding: .28rem .7rem;
+  margin-top: .55rem;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 8px;
   background: transparent;
   color: var(--muted);
+  cursor: pointer;
 }
-.msg button.ghost:hover, .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+.msg button.ghost:hover, .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
 
 .spinner {
   display: inline-block;
-  width: 0.9em; height: 0.9em;
+  width: .85em; height: .85em;
   border: 2px solid var(--line);
   border-top-color: var(--accent);
   border-radius: 50%;
-  vertical-align: -0.1em;
-  animation: spin 0.9s linear infinite;
+  vertical-align: -.08em;
+  animation: spin .9s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
   .spinner { animation: none; border-top-color: var(--line); }
 }
 
-/* ---- suggested questions ---- */
+/* ───────────────────────── composer ───────────────────────── */
 
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  padding-bottom: 0.8rem;
+#composer-wrap {
+  flex: none;
+  padding: .5rem 1.25rem 1rem;
+  background: var(--bg);
 }
-.chip {
-  font-family: var(--mono);
-  font-size: 0.78rem;
-  background: transparent;
-  color: var(--ink);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 0.3rem 0.85rem;
-}
-.chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
-
-/* ---- composer ---- */
 
 #composer {
+  width: 100%;
+  max-width: var(--col);
+  margin: 0 auto;
   display: flex;
-  gap: 0.5rem;
   align-items: flex-end;
-  border-top: 1px solid var(--line);
-  padding-top: 0.8rem;
+  gap: .4rem;
+  background: var(--bg-input);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: .4rem .45rem .4rem .5rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
 }
+#composer:focus-within { border-color: var(--muted); }
+
 #composer textarea {
   flex: 1;
   font: inherit;
   color: var(--ink);
-  background: var(--panel-bg);
-  padding: 0.6rem 0.8rem;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  resize: none;
-  min-width: 0;
-  max-height: 10rem;
-}
-#composer textarea:focus-visible { outline-offset: 0; }
-#upload-btn.plus {
-  flex: none;
-  width: 2.6rem;
-  height: 2.6rem;
-  padding: 0;
-  font-family: var(--mono);
-  font-size: 1.3rem;
-  line-height: 1;
   background: transparent;
-  color: var(--muted);
+  border: 0;
+  resize: none;
+  padding: .45rem .3rem;
+  min-width: 0;
+  max-height: 11rem;
+}
+#composer textarea:focus { outline: none; }
+#composer textarea::placeholder { color: var(--muted); }
+
+.icon-btn.in-composer {
+  font-family: var(--mono);
+  font-size: 1.15rem;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  width: 2.1rem; height: 2.1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  margin-bottom: .1rem;
 }
-#upload-btn.plus:hover { border-color: var(--accent); color: var(--accent); }
-.composer-hint { margin-top: 0.4rem; }
 
-footer {
-  padding-top: 0.75rem;
-  padding-bottom: 1.1rem;
-  font-size: 0.8rem;
-  color: var(--muted);
-  border-top: 1px solid var(--line);
+.send {
+  flex: none;
+  width: 2.1rem; height: 2.1rem;
+  margin-bottom: .1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: var(--accent-ink);
+  border: 0;
+  border-radius: 9px;
+  cursor: pointer;
 }
-footer a, .fine a { color: inherit; }
+.send svg { width: 17px; height: 17px; }
+.send:disabled { opacity: .4; cursor: not-allowed; }
 
-@media (max-width: 480px) {
-  .msg.user { max-width: 100%; }
-  header { padding-top: 1rem; }
+.composer-hint {
+  max-width: var(--col);
+  margin: .5rem auto 0;
+  text-align: center;
+}
+
+/* ───────────────────────── responsive ───────────────────────── */
+
+@media (max-width: 860px) {
+  #sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 30;
+    box-shadow: 0 0 40px rgba(0, 0, 0, .25);
+  }
+  #shell.side-hidden #sidebar { display: none; }
+  #sidebar-open { display: inline-flex; }
+  #scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .4);
+    z-index: 20;
+  }
+  #shell.side-hidden #scrim { display: none; }
+  .cards { grid-template-columns: 1fr; }
+  .msg.user > .bubble { max-width: 100%; }
+  #composer-wrap { padding: .5rem .75rem .75rem; }
+  #messages { padding: 1rem .75rem .75rem; }
+}
+
+/* Very large displays: scale type up rather than stretch the column. */
+@media (min-width: 1700px) {
+  html { font-size: 17.5px; }
+  :root { --col: 48rem; }
 }
