@@ -46,6 +46,36 @@ free, and strict against verbatim fabrication. When abstractive generation
 lands, an LLM-judge metric can be added *alongside* it (never replacing it)
 under a new harness version.
 
+### That proxy is measured, not assumed (Stage 10)
+
+Scored against RAGBench (`galileo-ai/ragbench`), which ships support
+labels and the scores three LLM judges gave the same rows:
+
+| method | best F1 | AUC | cost per evaluation |
+|---|---|---|---|
+| **this project's lexical proxy** | 0.383 | **0.639** | none |
+| RAGAS faithfulness | 0.302 | 0.567 | LLM calls |
+| TruLens groundedness | 0.384 | 0.635 | LLM calls |
+| GPT adherence judge | 0.389 | 0.628 | LLM calls |
+
+All four land in the same band — but the per-domain split is the real
+result. The proxy **beats every LLM judge on technical documentation**
+(techqa F1 0.758 vs 0.696–0.753; emanual 0.483 vs 0.261–0.400) and
+**collapses on multi-hop web QA and finance** (hotpotqa 0.095, finqa
+0.130), where faithful answers synthesise rather than reuse source
+wording. This corpus is technical documentation, so the cheap metric is
+fit for it — and would be the wrong metric for a paraphrase-heavy one.
+
+RAGBench's labels are model-generated, not human adjudication, which
+bounds the claim; the full caveats, the operating-point analysis (the
+check deliberately over-rejects, because dropping a true sentence beats
+shipping a fabricated one), and reproduction steps are in
+[`docs/stage10_grounding_validation.md`](docs/stage10_grounding_validation.md).
+
+```
+python eval/validate_grounding.py --tag stage10-grounding
+```
+
 ## Retrieval core (Stage 3)
 
 Hybrid retrieval: BM25 (numpy posting lists, `app/core/bm25.py`) and dense
