@@ -137,7 +137,7 @@ same TTL. Cache keys are namespaced by a corpus version, so any corpus
 change makes prior entries unaddressable rather than stale. Measured:
 1.45 s → 0.007 s on a repeat query.
 
-## Web app & document upload (Stage 9.6–9.8)
+## Web app & document upload (Stage 9.6–9.10)
 
 `frontend/` is a zero-dependency web app served same-origin (no CORS, no
 build step): Google sign-in, a chat surface, and a **retrieval trace** on
@@ -219,5 +219,41 @@ data/corpus_v1.jsonl      versioned corpus
 eval/dataset_v1.jsonl     versioned eval queries + gold labels
 eval/run_eval.py          THE eval harness (stdlib-only)
 eval/results/             committed baseline + per-run results
+eval/validate_grounding.py  grounding metric vs RAGBench (Stage 10)
 docs/                     one design report per stage
 ```
+
+## Design reports
+
+Every stage is written up: what was built, why that way, what was
+measured, and what was deliberately not done. Read in this order.
+
+| # | Report | What it decides |
+|---|---|---|
+| 2.5 | [infrastructure](docs/infrastructure.md) | free-tier component choice and the limits each imposes |
+| 3 | [loadtest_stage3](docs/loadtest_stage3.md) | retrieval core under load; the measured concurrency ceiling |
+| 4 | [loadtest_stage4](docs/loadtest_stage4.md) | adaptive rerank budget, generation + citation layer |
+| 4.5 | [stage4_5_quota](docs/stage4_5_quota.md) | quota-aware generation guardrails |
+| 5 | [stage5_admission](docs/stage5_admission.md) | bounded admission queue — why shedding beats queueing |
+| 5 | [stage5_api_hardening](docs/stage5_api_hardening.md) | API versioning, strict validation, size limits |
+| 6 | [stage6_observability](docs/stage6_observability.md) | metrics and structured logging |
+| 6.5 | [stage6_5_concurrency](docs/stage6_5_concurrency.md) | shared-state safety audit |
+| 7 | [stage7_testing](docs/stage7_testing.md) | the testing strategy and named integration scenarios |
+| 7.5 | [stage7_5_fullstack](docs/stage7_5_fullstack.md) | full-stack regression load test |
+| 7.7 | [stage7_7_breakers](docs/stage7_7_breakers.md) | quota and cost circuit breakers |
+| 8 | [stage8_deploy](docs/stage8_deploy.md) | live deployment on Render free tier |
+| 8.5 | [stage8_5_cicd](docs/stage8_5_cicd.md) | CI/CD and the merge-blocking drill |
+| 8.9 | [stage8_9_privacy](docs/stage8_9_privacy.md) | privacy policy and data practices |
+| 9.5 | [stage9_5_frontend_auth](docs/stage9_5_frontend_auth.md) | frontend + Google auth architecture decisions |
+| 9.6 | [stage9_6_frontend](docs/stage9_6_frontend.md) | production frontend with Google login |
+| 9.7 | [stage9_7_chat_ui](docs/stage9_7_chat_ui.md) | chat UI, and what was deliberately not ported |
+| 9.8 | [stage9_8](docs/stage9_8.md) | visual identity, dev-mode upload, review pass |
+| 9.9 | [stage9_9_hardening](docs/stage9_9_hardening.md) | readiness vs liveness, write auth, security headers |
+| 9.10 | [stage9_10_app_shell](docs/stage9_10_app_shell.md) | app shell, sign-in surface, client-side threads |
+| 10 | [stage10_grounding_validation](docs/stage10_grounding_validation.md) | **the grounding metric measured against RAGBench** |
+| 11 | [stage11_monitoring](docs/stage11_monitoring.md) | monitoring and alerting |
+
+If you read only two: [stage5_admission](docs/stage5_admission.md) for
+how the system behaves under load it cannot serve, and
+[stage10_grounding_validation](docs/stage10_grounding_validation.md) for
+the only metric in this project measured against data it did not create.
