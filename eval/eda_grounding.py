@@ -80,8 +80,8 @@ def main() -> int:
     # ---- 1. overview -----------------------------------------------
     section("1. DATASET OVERVIEW")
     print(f"shape          : {df.shape[0]} rows x {df.shape[1]} columns")
-    print(f"unit of a row  : one sentence of a generated answer")
-    print(f"target         : unsupported (1 = not backed by its documents)")
+    print("unit of a row  : one sentence of a generated answer")
+    print("target         : unsupported (1 = not backed by its documents)")
     print(f"missing values : {int(df.isna().sum().sum())}")
     print(f"duplicate rows : {int(df.duplicated().sum())}")
     print("\ncolumn types")
