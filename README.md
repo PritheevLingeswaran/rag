@@ -94,7 +94,18 @@ held-out 360 responses.
 Sentence-level AUC rises 0.666 → **0.823**. The model is 2 KB of JSON,
 adds no dependency, and scores in microseconds.
 
-It improves every domain, but unevenly — and that is the finding:
+A Colab replication then trained on **16× more data** (96 553 sentences,
+the full splits) and compared three model families. It scored *worse* on
+this held-out sample — AUC 0.693 against 0.753 — because RAGBench's train
+splits are 64% financial QA, the domain where lexical features fail, so
+the bigger model optimised for the majority domain and gave up manuals and
+biomedical text. Gradient boosting won on accuracy (AUC 0.840 on Colab's
+own finqa-heavy test set) and still does not ship: it cannot serialise to
+plain weights, and scikit-learn does not fit 512 MB. **More data was not
+better data, and the better model was the one that fits.**
+
+The trained model improves every domain, but unevenly — and that is the
+underlying finding:
 technical documentation gains most, while multi-hop and financial QA stay
 far behind RAGAS. **The failure was in the features, not the classifier.**
 Where a faithful answer synthesises rather than reuses wording there is no

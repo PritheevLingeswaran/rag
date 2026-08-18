@@ -112,6 +112,86 @@ nothing beats every commercial judge tested. For paraphrase-heavy or
 numerical corpora it should not be trusted, and the report says which
 tool would be.
 
+## The Colab replication: 16× more data made it worse
+
+The training was repeated in Google Colab against the **full** `train` and
+`validation` splits of all six configs — 96 553 training sentences against
+the 6 054 used above, a 16× increase — and three model families were
+compared instead of one.
+
+On Colab's own test set (the full `test` splits) the ranking looked
+decisive:
+
+| model | AUC, full test split |
+|---|---|
+| gradient boosting | 0.840 |
+| random forest | 0.834 |
+| logistic regression | 0.794 |
+| lexical heuristic | 0.524 |
+
+Then the Colab logistic model was scored on **this project's committed
+test sample** — the balanced 360 responses every other number in this
+report uses — and it came out *behind* the model trained on 16× less
+data:
+
+| | sentence AUC | example AUC | example best F1 |
+|---|---|---|---|
+| trained on 6 054 balanced sentences | **0.823** | **0.753** | **0.500** |
+| trained on 96 553 full-split sentences | 0.794 | 0.693 | 0.464 |
+
+### Why
+
+RAGBench's `train` splits are wildly unbalanced:
+
+| config | train rows | share |
+|---|---|---|
+| **finqa** | **12 502** | **64.4%** |
+| hotpotqa | 1 883 | 9.7% |
+| cuad | 1 530 | 7.9% |
+| covidqa | 1 252 | 6.4% |
+| techqa | 1 192 | 6.1% |
+| emanual | 1 054 | 5.4% |
+
+Training on everything means training almost two-thirds on financial QA —
+the domain where lexical features work *worst*. The per-domain scores show
+exactly that trade being made:
+
+| domain | balanced model | full-split model |
+|---|---|---|
+| finqa | 0.148 | **0.400** |
+| emanual | **0.500** | 0.273 |
+| covidqa | **0.400** | 0.286 |
+| techqa | **0.806** | 0.795 |
+
+The full-split model bought a large finqa gain by giving up manuals and
+biomedical text. It optimised for the majority domain, which is the
+correct behaviour for the data it was given and the wrong outcome for
+this project — whose corpus is technical documentation.
+
+The same effect explains why the heuristic's AUC reads 0.524 in Colab and
+0.666 here: Colab's test set is also finqa-dominated, so it is largely
+measuring the one domain where lexical overlap fails.
+
+### What is kept
+
+The **balanced** model ships. `grounding_model_colab_v1.json` is kept
+beside it as the record of the comparison, not as a fallback.
+
+Two conclusions worth more than the accuracy numbers:
+
+1. **More data is not better data.** A 16× larger training set degraded
+   held-out performance because its composition, not its size, was wrong.
+   Sampling 300 rows per config was a guess that turned out to be doing
+   real work.
+2. **Gradient boosting won and still should not ship.** It led logistic
+   regression by 0.046 AUC, but it cannot serialise to plain weights, and
+   scikit-learn plus scipy does not fit a 512 MB deployment that already
+   holds two ONNX models. A 2 KB JSON file that costs nothing beats a
+   better model that does not fit.
+
+Both are reproducible from `docs/` and the notebook cells; neither was the
+expected result.
+
 ## Not wired into serving
 
 `app/core/grounding.py` is unchanged and remains what `CitationValidator`

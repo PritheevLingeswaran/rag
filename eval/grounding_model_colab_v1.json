@@ -1,0 +1,82 @@
+{
+  "model": "logistic_regression",
+  "version": "1.0-colab",
+  "trained_at": "2026-08-18T03:35:09.839044",
+  "seed": 42,
+  "feature_names": [
+    "coverage",
+    "bigram_coverage",
+    "longest_shared_run",
+    "numeral_coverage",
+    "has_numeral",
+    "long_token_coverage",
+    "capitalised_coverage",
+    "missing_count",
+    "token_count",
+    "position",
+    "is_first",
+    "context_size"
+  ],
+  "mean": [
+    0.6788010811167912,
+    0.3407903582941456,
+    0.5538699330082995,
+    0.6581197108413377,
+    0.7319399707932431,
+    0.7171872739142695,
+    0.6432895647167372,
+    0.3041945874286243,
+    0.27357099209760444,
+    0.39946972129296865,
+    0.20106055741406273,
+    0.2969170507389552
+  ],
+  "std": [
+    0.2722642385817732,
+    0.294616695777196,
+    0.30427194569213384,
+    0.39665113468776414,
+    0.44294903764239657,
+    0.36064794951614815,
+    0.43755820685167235,
+    0.25645239126598446,
+    0.15919007634254087,
+    0.2952659584241633,
+    0.4007932255747691,
+    0.22247074934330688
+  ],
+  "coefficients": [
+    0.9667626258984934,
+    -0.2715120946753358,
+    -0.45744132853538283,
+    0.007267685911148819,
+    -0.22047946409768163,
+    -0.06871635362579105,
+    -0.05029964984479387,
+    0.38566963814238914,
+    -0.052785669826077485,
+    0.07766494268175425,
+    0.12894159022720367,
+    0.5565633077232003
+  ],
+  "intercept": -0.38963764898132464,
+  "threshold": 0.658,
+  "training": {
+    "train_sentences": 96553,
+    "validation_sentences": 16561,
+    "source": "galileo-ai/ragbench train+validation splits",
+    "trained_in": "Google Colab, full train+validation splits of all six configs",
+    "model_selection": {
+      "compared": ["logistic_regression", "gradient_boosting", "random_forest"],
+      "test_auc_full_split": {
+        "lexical_heuristic": 0.524,
+        "logistic_regression": 0.794,
+        "gradient_boosting": 0.840,
+        "random_forest": 0.834
+      },
+      "shipped": "logistic_regression",
+      "reason": "gradient boosting led by 0.046 AUC but cannot serialise to plain weights; scikit-learn at serving does not fit the 512MB budget"
+    }
+  },
+  "note": "Trained in Colab. Test split never used for weights or threshold."
+}
