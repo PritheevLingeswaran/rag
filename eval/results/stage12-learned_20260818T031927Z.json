@@ -1,0 +1,652 @@
+{
+  "sentence_level": {
+    "n": 1851,
+    "positives": 363,
+    "at_shipped_threshold": {
+      "tp": 217,
+      "fp": 482,
+      "fn": 146,
+      "tn": 1006,
+      "precision": 0.3104,
+      "recall": 0.5978,
+      "f1": 0.4087,
+      "accuracy": 0.6607
+    },
+    "best_f1": {
+      "tp": 266,
+      "fp": 638,
+      "fn": 97,
+      "tn": 850,
+      "precision": 0.2942,
+      "recall": 0.7328,
+      "f1": 0.4199,
+      "accuracy": 0.6029,
+      "threshold": 0.2222
+    },
+    "auc": 0.6658,
+    "skipped_sentences_without_content_tokens": 4,
+    "learned_model": {
+      "at_trained_threshold": {
+        "tp": 255,
+        "fp": 305,
+        "fn": 108,
+        "tn": 1187,
+        "precision": 0.4554,
+        "recall": 0.7025,
+        "f1": 0.5525,
+        "accuracy": 0.7774
+      },
+      "best_f1": {
+        "tp": 278,
+        "fp": 353,
+        "fn": 85,
+        "tn": 1139,
+        "precision": 0.4406,
+        "recall": 0.7658,
+        "f1": 0.5594,
+        "accuracy": 0.7639,
+        "threshold": 0.5758
+      },
+      "auc": 0.8233
+    }
+  },
+  "example_level": {
+    "n": 360,
+    "positives": 63,
+    "methods": {
+      "ragp_lexical_proxy": {
+        "description": "app/core/grounding.py, threshold 0.7 -- deterministic, no API calls",
+        "n": 360,
+        "at_shipped_threshold": {
+          "tp": 47,
+          "fp": 157,
+          "fn": 16,
+          "tn": 140,
+          "precision": 0.2304,
+          "recall": 0.746,
+          "f1": 0.3521,
+          "accuracy": 0.5194
+        },
+        "best_f1": {
+          "tp": 40,
+          "fp": 106,
+          "fn": 23,
+          "tn": 191,
+          "precision": 0.274,
+          "recall": 0.6349,
+          "f1": 0.3828,
+          "accuracy": 0.6417,
+          "threshold": 0.4545
+        },
+        "auc": 0.639
+      },
+      "ragp_learned_model": {
+        "description": "logistic regression on 12 lexical features, trained on RAGBench train/validation splits -- deterministic, no API calls",
+        "n": 360,
+        "at_shipped_threshold": {
+          "tp": 44,
+          "fp": 99,
+          "fn": 19,
+          "tn": 198,
+          "precision": 0.3077,
+          "recall": 0.6984,
+          "f1": 0.4272,
+          "accuracy": 0.6722
+        },
+        "best_f1": {
+          "tp": 40,
+          "fp": 57,
+          "fn": 23,
+          "tn": 240,
+          "precision": 0.4124,
+          "recall": 0.6349,
+          "f1": 0.5,
+          "accuracy": 0.7778,
+          "threshold": 0.6664
+        },
+        "auc": 0.7528
+      },
+      "ragas_faithfulness": {
+        "description": "RAGAS faithfulness (LLM judge)",
+        "n": 343,
+        "at_shipped_threshold": null,
+        "best_f1": {
+          "tp": 61,
+          "fp": 282,
+          "fn": 0,
+          "tn": 0,
+          "precision": 0.1778,
+          "recall": 1.0,
+          "f1": 0.302,
+          "accuracy": 0.1778,
+          "threshold": -1.0
+        },
+        "auc": 0.5672
+      },
+      "trulens_groundedness": {
+        "description": "TruLens groundedness (LLM judge)",
+        "n": 348,
+        "at_shipped_threshold": null,
+        "best_f1": {
+          "tp": 43,
+          "fp": 121,
+          "fn": 17,
+          "tn": 167,
+          "precision": 0.2622,
+          "recall": 0.7167,
+          "f1": 0.3839,
+          "accuracy": 0.6034,
+          "threshold": 0.5667
+        },
+        "auc": 0.6347
+      },
+      "gpt3_adherence": {
+        "description": "GPT adherence (LLM judge)",
+        "n": 348,
+        "at_shipped_threshold": null,
+        "best_f1": {
+          "tp": 22,
+          "fp": 30,
+          "fn": 39,
+          "tn": 257,
+          "precision": 0.4231,
+          "recall": 0.3607,
+          "f1": 0.3894,
+          "accuracy": 0.8017,
+          "threshold": 0.0
+        },
+        "auc": 0.6281
+      }
+    },
+    "per_domain_at_shipped_threshold": {
+      "covidqa_test": {
+        "tp": 1,
+        "fp": 10,
+        "fn": 7,
+        "tn": 42,
+        "precision": 0.0909,
+        "recall": 0.125,
+        "f1": 0.1053,
+        "accuracy": 0.7167
+      },
+      "cuad_test": {
+        "tp": 6,
+        "fp": 40,
+        "fn": 1,
+        "tn": 13,
+        "precision": 0.1304,
+        "recall": 0.8571,
+        "f1": 0.2264,
+        "accuracy": 0.3167
+      },
+      "emanual_test": {
+        "tp": 9,
+        "fp": 38,
+        "fn": 0,
+        "tn": 13,
+        "precision": 0.1915,
+        "recall": 1.0,
+        "f1": 0.3214,
+        "accuracy": 0.3667
+      },
+      "finqa_test": {
+        "tp": 3,
+        "fp": 49,
+        "fn": 1,
+        "tn": 7,
+        "precision": 0.0577,
+        "recall": 0.75,
+        "f1": 0.1071,
+        "accuracy": 0.1667
+      },
+      "hotpotqa_test": {
+        "tp": 0,
+        "fp": 4,
+        "fn": 3,
+        "tn": 53,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "accuracy": 0.8833
+      },
+      "techqa_test": {
+        "tp": 28,
+        "fp": 16,
+        "fn": 4,
+        "tn": 12,
+        "precision": 0.6364,
+        "recall": 0.875,
+        "f1": 0.7368,
+        "accuracy": 0.6667
+      }
+    },
+    "per_domain_best_f1_all_methods": {
+      "covidqa_test": {
+        "gpt3_adherence": {
+          "tp": 5,
+          "fp": 3,
+          "fn": 3,
+          "tn": 49,
+          "precision": 0.625,
+          "recall": 0.625,
+          "f1": 0.625,
+          "accuracy": 0.9,
+          "threshold": 0.0,
+          "n": 60,
+          "auc": 0.7837
+        },
+        "ragas_faithfulness": {
+          "tp": 3,
+          "fp": 5,
+          "fn": 5,
+          "tn": 44,
+          "precision": 0.375,
+          "recall": 0.375,
+          "f1": 0.375,
+          "accuracy": 0.8246,
+          "threshold": 0.1667,
+          "n": 57,
+          "auc": 0.6288
+        },
+        "ragp_learned_model": {
+          "tp": 4,
+          "fp": 8,
+          "fn": 4,
+          "tn": 44,
+          "precision": 0.3333,
+          "recall": 0.5,
+          "f1": 0.4,
+          "accuracy": 0.8,
+          "threshold": 0.4941,
+          "n": 60,
+          "auc": 0.6659
+        },
+        "ragp_lexical_proxy": {
+          "tp": 4,
+          "fp": 12,
+          "fn": 4,
+          "tn": 40,
+          "precision": 0.25,
+          "recall": 0.5,
+          "f1": 0.3333,
+          "accuracy": 0.7333,
+          "threshold": 0.2609,
+          "n": 60,
+          "auc": 0.5889
+        },
+        "trulens_groundedness": {
+          "tp": 7,
+          "fp": 25,
+          "fn": 1,
+          "tn": 27,
+          "precision": 0.2188,
+          "recall": 0.875,
+          "f1": 0.35,
+          "accuracy": 0.5667,
+          "threshold": 0.1667,
+          "n": 60,
+          "auc": 0.6514
+        }
+      },
+      "cuad_test": {
+        "gpt3_adherence": {
+          "tp": 5,
+          "fp": 43,
+          "fn": 0,
+          "tn": 0,
+          "precision": 0.1042,
+          "recall": 1.0,
+          "f1": 0.1887,
+          "accuracy": 0.1042,
+          "threshold": -1.0,
+          "n": 48,
+          "auc": 0.3721
+        },
+        "ragas_faithfulness": {
+          "tp": 2,
+          "fp": 1,
+          "fn": 3,
+          "tn": 41,
+          "precision": 0.6667,
+          "recall": 0.4,
+          "f1": 0.5,
+          "accuracy": 0.9149,
+          "threshold": 0.4,
+          "n": 47,
+          "auc": 0.7333
+        },
+        "ragp_learned_model": {
+          "tp": 4,
+          "fp": 9,
+          "fn": 3,
+          "tn": 44,
+          "precision": 0.3077,
+          "recall": 0.5714,
+          "f1": 0.4,
+          "accuracy": 0.8,
+          "threshold": 0.7706,
+          "n": 60,
+          "auc": 0.7008
+        },
+        "ragp_lexical_proxy": {
+          "tp": 4,
+          "fp": 13,
+          "fn": 3,
+          "tn": 40,
+          "precision": 0.2353,
+          "recall": 0.5714,
+          "f1": 0.3333,
+          "accuracy": 0.7333,
+          "threshold": 0.5833,
+          "n": 60,
+          "auc": 0.6402
+        },
+        "trulens_groundedness": {
+          "tp": 5,
+          "fp": 36,
+          "fn": 0,
+          "tn": 8,
+          "precision": 0.122,
+          "recall": 1.0,
+          "f1": 0.2174,
+          "accuracy": 0.2653,
+          "threshold": 0.3333,
+          "n": 49,
+          "auc": 0.3727
+        }
+      },
+      "emanual_test": {
+        "gpt3_adherence": {
+          "tp": 9,
+          "fp": 51,
+          "fn": 0,
+          "tn": 0,
+          "precision": 0.15,
+          "recall": 1.0,
+          "f1": 0.2609,
+          "accuracy": 0.15,
+          "threshold": -1.0,
+          "n": 60,
+          "auc": 0.5
+        },
+        "ragas_faithfulness": {
+          "tp": 2,
+          "fp": 0,
+          "fn": 7,
+          "tn": 51,
+          "precision": 1.0,
+          "recall": 0.2222,
+          "f1": 0.3636,
+          "accuracy": 0.8833,
+          "threshold": 0.3333,
+          "n": 60,
+          "auc": 0.573
+        },
+        "ragp_learned_model": {
+          "tp": 4,
+          "fp": 3,
+          "fn": 5,
+          "tn": 48,
+          "precision": 0.5714,
+          "recall": 0.4444,
+          "f1": 0.5,
+          "accuracy": 0.8667,
+          "threshold": 0.6651,
+          "n": 60,
+          "auc": 0.6645
+        },
+        "ragp_lexical_proxy": {
+          "tp": 7,
+          "fp": 13,
+          "fn": 2,
+          "tn": 38,
+          "precision": 0.35,
+          "recall": 0.7778,
+          "f1": 0.4828,
+          "accuracy": 0.75,
+          "threshold": 0.5833,
+          "n": 60,
+          "auc": 0.7179
+        },
+        "trulens_groundedness": {
+          "tp": 5,
+          "fp": 11,
+          "fn": 4,
+          "tn": 40,
+          "precision": 0.3125,
+          "recall": 0.5556,
+          "f1": 0.4,
+          "accuracy": 0.75,
+          "threshold": 0.44,
+          "n": 60,
+          "auc": 0.7124
+        }
+      },
+      "finqa_test": {
+        "gpt3_adherence": {
+          "tp": 4,
+          "fp": 56,
+          "fn": 0,
+          "tn": 0,
+          "precision": 0.0667,
+          "recall": 1.0,
+          "f1": 0.125,
+          "accuracy": 0.0667,
+          "threshold": -1.0,
+          "n": 60,
+          "auc": 0.4911
+        },
+        "ragas_faithfulness": {
+          "tp": 2,
+          "fp": 3,
+          "fn": 2,
+          "tn": 52,
+          "precision": 0.4,
+          "recall": 0.5,
+          "f1": 0.4444,
+          "accuracy": 0.9153,
+          "threshold": 0.6,
+          "n": 59,
+          "auc": 0.6182
+        },
+        "ragp_learned_model": {
+          "tp": 2,
+          "fp": 21,
+          "fn": 2,
+          "tn": 35,
+          "precision": 0.087,
+          "recall": 0.5,
+          "f1": 0.1481,
+          "accuracy": 0.6167,
+          "threshold": 0.593,
+          "n": 60,
+          "auc": 0.4018
+        },
+        "ragp_lexical_proxy": {
+          "tp": 3,
+          "fp": 39,
+          "fn": 1,
+          "tn": 17,
+          "precision": 0.0714,
+          "recall": 0.75,
+          "f1": 0.1304,
+          "accuracy": 0.3333,
+          "threshold": 0.4444,
+          "n": 60,
+          "auc": 0.3728
+        },
+        "trulens_groundedness": {
+          "tp": 4,
+          "fp": 33,
+          "fn": 0,
+          "tn": 23,
+          "precision": 0.1081,
+          "recall": 1.0,
+          "f1": 0.1951,
+          "accuracy": 0.45,
+          "threshold": 0.6667,
+          "n": 60,
+          "auc": 0.5759
+        }
+      },
+      "hotpotqa_test": {
+        "gpt3_adherence": {
+          "tp": 1,
+          "fp": 3,
+          "fn": 2,
+          "tn": 54,
+          "precision": 0.25,
+          "recall": 0.3333,
+          "f1": 0.2857,
+          "accuracy": 0.9167,
+          "threshold": 0.0,
+          "n": 60,
+          "auc": 0.6404
+        },
+        "ragas_faithfulness": {
+          "tp": 2,
+          "fp": 4,
+          "fn": 1,
+          "tn": 53,
+          "precision": 0.3333,
+          "recall": 0.6667,
+          "f1": 0.4444,
+          "accuracy": 0.9167,
+          "threshold": 0.3333,
+          "n": 60,
+          "auc": 0.9474
+        },
+        "ragp_learned_model": {
+          "tp": 3,
+          "fp": 51,
+          "fn": 0,
+          "tn": 6,
+          "precision": 0.0556,
+          "recall": 1.0,
+          "f1": 0.1053,
+          "accuracy": 0.15,
+          "threshold": 0.1843,
+          "n": 60,
+          "auc": 0.386
+        },
+        "ragp_lexical_proxy": {
+          "tp": 3,
+          "fp": 57,
+          "fn": 0,
+          "tn": 0,
+          "precision": 0.05,
+          "recall": 1.0,
+          "f1": 0.0952,
+          "accuracy": 0.05,
+          "threshold": -1.0,
+          "n": 60,
+          "auc": 0.1754
+        },
+        "trulens_groundedness": {
+          "tp": 2,
+          "fp": 16,
+          "fn": 1,
+          "tn": 41,
+          "precision": 0.1111,
+          "recall": 0.6667,
+          "f1": 0.1905,
+          "accuracy": 0.7167,
+          "threshold": 0.5,
+          "n": 60,
+          "auc": 0.6784
+        }
+      },
+      "techqa_test": {
+        "gpt3_adherence": {
+          "tp": 32,
+          "fp": 28,
+          "fn": 0,
+          "tn": 0,
+          "precision": 0.5333,
+          "recall": 1.0,
+          "f1": 0.6957,
+          "accuracy": 0.5333,
+          "threshold": -1.0,
+          "n": 60,
+          "auc": 0.5357
+        },
+        "ragas_faithfulness": {
+          "tp": 32,
+          "fp": 28,
+          "fn": 0,
+          "tn": 0,
+          "precision": 0.5333,
+          "recall": 1.0,
+          "f1": 0.6957,
+          "accuracy": 0.5333,
+          "threshold": -1.0,
+          "n": 60,
+          "auc": 0.4682
+        },
+        "ragp_learned_model": {
+          "tp": 27,
+          "fp": 8,
+          "fn": 5,
+          "tn": 20,
+          "precision": 0.7714,
+          "recall": 0.8438,
+          "f1": 0.806,
+          "accuracy": 0.7833,
+          "threshold": 0.6914,
+          "n": 60,
+          "auc": 0.8672
+        },
+        "ragp_lexical_proxy": {
+          "tp": 25,
+          "fp": 9,
+          "fn": 7,
+          "tn": 19,
+          "precision": 0.7353,
+          "recall": 0.7812,
+          "f1": 0.7576,
+          "accuracy": 0.7333,
+          "threshold": 0.4286,
+          "n": 60,
+          "auc": 0.7573
+        },
+        "trulens_groundedness": {
+          "tp": 29,
+          "fp": 17,
+          "fn": 2,
+          "tn": 11,
+          "precision": 0.6304,
+          "recall": 0.9355,
+          "f1": 0.7532,
+          "accuracy": 0.678,
+          "threshold": 0.5667,
+          "n": 59,
+          "auc": 0.61
+        }
+      }
+    }
+  },
+  "validation_version": "1.1",
+  "grounding_threshold": 0.7,
+  "timestamp": "2026-08-18T03:19:27.259915+00:00",
+  "app_version": "0.1.1",
+  "git_commit": "ad7a83743a265081b668f63e86ec018ba7376405",
+  "python": "3.11.9",
+  "sample_file": "ragbench_sample_v1.jsonl",
+  "sample_sha256": "7a003933f69b77b01750dd1b2bb53102fd123ef91917e0cf54897d52520c3fef",
+  "learned_model": {
+    "file": "grounding_model_v1.json",
+    "sha256": "95096ebab66f80a928c66eea0e367c0f8fac7f48d8f7c91810b2f471477ecb08",
+    "training": {
+      "train_file": "ragbench_train_v1.jsonl",
+      "train_sha256": "ec8d39e7a46abbdd305a3e1ccb604b7cd831608eee466b9421c6069302a7715a",
+      "train_sentences": 6054,
+      "validation_file": "ragbench_validation_v1.jsonl",
+      "validation_sha256": "6de63e11c1838aa62d7221030d41c440f6896cba80611c379f153a6d5081f6f6",
+      "validation_sentences": 2910,
+      "val_auc": 0.7687,
+      "val_f1_at_threshold": 0.4217
+    }
+  },
+  "source": "galileo-ai/ragbench (CC-BY-4.0), test splits only",
+  "reference_label_provenance": "model-generated (RAGBench annotating_model_name, gpt-4o where populated); NOT human adjudication. gpt3_adherence shares lineage with the annotator and is favourably biased."
+}

@@ -1,0 +1,80 @@
+{
+  "model": "logistic_regression",
+  "version": "1.0",
+  "trained_at": "2026-08-18T03:18:14.740586+00:00",
+  "seed": 42,
+  "hyperparameters": {
+    "epochs": 3000,
+    "lr": 0.5,
+    "l2": 50.0
+  },
+  "feature_names": [
+    "coverage",
+    "bigram_coverage",
+    "longest_shared_run",
+    "numeral_coverage",
+    "has_numeral",
+    "long_token_coverage",
+    "capitalised_coverage",
+    "missing_count",
+    "token_count",
+    "position",
+    "is_first",
+    "context_size"
+  ],
+  "mean": [
+    0.7732083763592865,
+    0.4282736417599313,
+    0.6131473269641452,
+    0.8119785790871015,
+    0.49636603898249093,
+    0.7747002092107406,
+    0.7223286579967704,
+    0.26800462504129174,
+    0.33605467459531024,
+    0.35133795837462833,
+    0.29732408325074333,
+    0.4305634291377659
+  ],
+  "std": [
+    0.22190284230505405,
+    0.30936141558349894,
+    0.2929498517097402,
+    0.35467407286420743,
+    0.4999867941529048,
+    0.3000744576901711,
+    0.3874188626906646,
+    0.2533594877666442,
+    0.1784793996114998,
+    0.29721950199849045,
+    0.4570803788939337,
+    0.3165775577013844
+  ],
+  "coefficients": [
+    0.5815584881113435,
+    -0.5565481456470063,
+    -0.38579628769849406,
+    0.07463341531242625,
+    0.056918071266085626,
+    -0.12667524875380468,
+    0.038246315629383375,
+    0.24298643001326062,
+    -0.05792500268251183,
+    -0.009646347280444098,
+    -0.08470844113953105,
+    0.2183279091064335
+  ],
+  "intercept": -0.25481295778749463,
+  "threshold": 0.599,
+  "training": {
+    "train_file": "ragbench_train_v1.jsonl",
+    "train_sha256": "ec8d39e7a46abbdd305a3e1ccb604b7cd831608eee466b9421c6069302a7715a",
+    "train_sentences": 6054,
+    "validation_file": "ragbench_validation_v1.jsonl",
+    "validation_sha256": "6de63e11c1838aa62d7221030d41c440f6896cba80611c379f153a6d5081f6f6",
+    "validation_sentences": 2910,
+    "val_auc": 0.7687,
+    "val_f1_at_threshold": 0.4217
+  },
+  "note": "Trained on RAGBench train/validation splits only. The Stage 10 test sample was not used for weights or threshold selection."
+}

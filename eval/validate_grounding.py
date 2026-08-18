@@ -75,7 +75,32 @@ from app.core.grounding import (  # noqa: E402
 
 SAMPLE_PATH = REPO_ROOT / "eval" / "ragbench_sample_v1.jsonl"
 RESULTS_DIR = REPO_ROOT / "eval" / "results"
-VALIDATION_VERSION = "1.0"
+MODEL_PATH = REPO_ROOT / "eval" / "grounding_model_v1.json"
+VALIDATION_VERSION = "1.1"
+
+
+def load_model() -> dict | None:
+    if not MODEL_PATH.exists():
+        return None
+    return json.loads(MODEL_PATH.read_text(encoding="utf-8"))
+
+
+def score_learned(model: dict, sentences: list[str],
+                  context: str) -> list[float]:
+    """P(unsupported) per sentence from the trained logistic model."""
+    import math
+
+    from app.core.grounding_features import extract_response
+
+    mu = model["mean"]
+    sd = model["std"]
+    w = model["coefficients"]
+    b = model["intercept"]
+    out = []
+    for vec in extract_response(sentences, context):
+        z = sum(((v - m) / s) * c for v, m, s, c in zip(vec, mu, sd, w)) + b
+        out.append(1.0 / (1.0 + math.exp(-max(-60.0, min(60.0, z)))))
+    return out
 
 # Judges shipped with RAGBench. Each scores GROUNDEDNESS in [0, 1] where
 # HIGHER means better supported, so the "unsupported" score is 1 - value.
@@ -149,9 +174,13 @@ def best_f1(scored: list[tuple[float, bool]]) -> dict:
 
 # ---------------------------------------------------------------- harness
 
-def evaluate(rows: list[dict]) -> dict:
+def evaluate(rows: list[dict], model: dict | None = None) -> dict:
     sentence_pairs: list[tuple[bool, bool]] = []
     sentence_scored: list[tuple[float, bool]] = []
+    learned_sentence_pairs: list[tuple[bool, bool]] = []
+    learned_sentence_scored: list[tuple[float, bool]] = []
+    learned_example_pairs: list[tuple[bool, bool]] = []
+    learned_example_scored: list[tuple[float, bool]] = []
     example_pairs: list[tuple[bool, bool]] = []
     example_scored: list[tuple[float, bool]] = []
     baseline_scored: dict[str, list[tuple[float, bool]]] = {
@@ -165,10 +194,32 @@ def evaluate(rows: list[dict]) -> dict:
     skipped_no_content = 0
 
     for row in rows:
+        learned_row_score = None
         context = "\n\n".join(row.get("documents") or [])
         ctx_tokens = set(content_tokens(context))
         sentences = row.get("response_sentences") or []
         unsupported_keys = set(row.get("unsupported_response_sentence_keys") or [])
+
+        if model is not None:
+            texts = [it[1] for it in sentences
+                     if isinstance(it, (list, tuple)) and len(it) >= 2]
+            keys = [it[0] for it in sentences
+                    if isinstance(it, (list, tuple)) and len(it) >= 2]
+            if texts:
+                probs = score_learned(model, texts, context)
+                thr = model["threshold"]
+                worst_learned = 0.0
+                any_learned = False
+                for key, prob in zip(keys, probs):
+                    actual_s = key in unsupported_keys
+                    learned_sentence_pairs.append((prob >= thr, actual_s))
+                    learned_sentence_scored.append((prob, actual_s))
+                    worst_learned = max(worst_learned, prob)
+                    any_learned = any_learned or prob >= thr
+                actual_e = row.get("adherence_score") is False
+                learned_example_pairs.append((any_learned, actual_e))
+                learned_example_scored.append((worst_learned, actual_e))
+                learned_row_score = worst_learned
 
         worst = 1.0          # lowest coverage seen in this response
         any_predicted = False
@@ -197,6 +248,9 @@ def evaluate(rows: list[dict]) -> dict:
         per_domain.setdefault(domain, []).append((any_predicted, actual_ex))
         slot = per_domain_scored.setdefault(domain, {})
         slot.setdefault("ragp_lexical_proxy", []).append((1.0 - worst, actual_ex))
+        if learned_row_score is not None:
+            slot.setdefault("ragp_learned_model", []).append(
+                (learned_row_score, actual_ex))
 
         for name in BASELINES:
             val = row.get(name)
@@ -216,6 +270,17 @@ def evaluate(rows: list[dict]) -> dict:
             "auc": auc(example_scored),
         }
     }
+    if model is not None and learned_example_scored:
+        methods["ragp_learned_model"] = {
+            "description": (
+                "logistic regression on 12 lexical features, trained on "
+                "RAGBench train/validation splits -- deterministic, no API calls"
+            ),
+            "n": len(learned_example_scored),
+            "at_shipped_threshold": confusion(learned_example_pairs),
+            "best_f1": best_f1(learned_example_scored),
+            "auc": auc(learned_example_scored),
+        }
     for name, label in BASELINES.items():
         scored = baseline_scored[name]
         methods[name] = {
@@ -234,6 +299,11 @@ def evaluate(rows: list[dict]) -> dict:
             "best_f1": best_f1(sentence_scored),
             "auc": auc(sentence_scored),
             "skipped_sentences_without_content_tokens": skipped_no_content,
+            "learned_model": ({
+                "at_trained_threshold": confusion(learned_sentence_pairs),
+                "best_f1": best_f1(learned_sentence_scored),
+                "auc": auc(learned_sentence_scored),
+            } if learned_sentence_scored else None),
         },
         "example_level": {
             "n": len(example_pairs),
@@ -279,6 +349,15 @@ def print_report(report: dict) -> None:
           f"responses: {e['n']} ({e['positives']} not adherent)")
     print("-" * 74)
 
+    lm = s.get("learned_model")
+    if lm:
+        lc = lm["at_trained_threshold"]
+        print("SENTENCE LEVEL — learned model at its trained threshold")
+        print(f"  precision {lc['precision']:.3f}  recall {lc['recall']:.3f}  "
+              f"F1 {lc['f1']:.3f}  accuracy {lc['accuracy']:.3f}"
+              f"   | AUC {lm['auc']}")
+        print("-" * 74)
+
     c = s["at_shipped_threshold"]
     print(f"SENTENCE LEVEL — the unit the shipped metric judges "
           f"(threshold {GROUNDING_THRESHOLD})")
@@ -302,8 +381,11 @@ def print_report(report: dict) -> None:
     print("-" * 74)
 
     print("PER DOMAIN — best F1, every method on the SAME slice")
-    names = ["ragp_lexical_proxy", *BASELINES]
-    print(f"  {'domain':<16}" + "".join(f"{n.split('_')[0][:9]:>10}" for n in names))
+    names = ["ragp_lexical_proxy", "ragp_learned_model", *BASELINES]
+    labels = {"ragp_lexical_proxy": "heuristic", "ragp_learned_model": "learned",
+              "ragas_faithfulness": "ragas", "trulens_groundedness": "trulens",
+              "gpt3_adherence": "gpt"}
+    print(f"  {'domain':<16}" + "".join(f"{labels[n]:>10}" for n in names))
     for d, methods_here in e["per_domain_best_f1_all_methods"].items():
         cells = "".join(
             f"{methods_here[n]['f1']:>10.3f}" if n in methods_here else f"{'—':>10}"
@@ -326,7 +408,8 @@ def main() -> int:
 
     rows = [json.loads(line) for line in
             SAMPLE_PATH.open(encoding="utf-8") if line.strip()]
-    report = evaluate(rows)
+    model = load_model()
+    report = evaluate(rows, model)
     report.update({
         "validation_version": VALIDATION_VERSION,
         "grounding_threshold": GROUNDING_THRESHOLD,
@@ -336,6 +419,10 @@ def main() -> int:
         "python": platform.python_version(),
         "sample_file": SAMPLE_PATH.name,
         "sample_sha256": sha256(SAMPLE_PATH),
+        "learned_model": ({"file": MODEL_PATH.name,
+                           "sha256": sha256(MODEL_PATH),
+                           "training": model.get("training")}
+                          if model else None),
         "source": "galileo-ai/ragbench (CC-BY-4.0), test splits only",
         "reference_label_provenance": (
             "model-generated (RAGBench annotating_model_name, gpt-4o where "

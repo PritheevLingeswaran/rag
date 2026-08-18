@@ -6,3 +6,12 @@ venv/
 *.egg-info/
 .pytest_cache/
 .coverage
+
+# Raw RAGBench training pulls: ~40MB of documents that exist only to be
+# turned into the committed 123KB feature matrix. Re-fetch with
+#   python eval/fetch_ragbench.py --split train --per-config 300
+#   python eval/fetch_ragbench.py --split validation --per-config 120
+# Their SHA-256 hashes are recorded in eval/grounding_model_v1.json.
+# The held-out TEST sample (ragbench_sample_v1.jsonl) IS committed.
+eval/ragbench_train_v1.jsonl
+eval/ragbench_validation_v1.jsonl

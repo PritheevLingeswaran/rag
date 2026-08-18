@@ -76,6 +76,33 @@ shipping a fabricated one), and reproduction steps are in
 python eval/validate_grounding.py --tag stage10-grounding
 ```
 
+### And then trained to beat them (Stage 12)
+
+Those numbers are a *measured failure*, so Stage 12 trains a replacement:
+12 lexical features, logistic regression, fit on RAGBench's `train` split
+with the threshold chosen on `validation`, then scored once on the same
+held-out 360 responses.
+
+| method | best F1 | AUC | cost |
+|---|---|---|---|
+| **trained classifier** | **0.500** | **0.753** | none |
+| GPT adherence judge | 0.389 | 0.628 | LLM calls |
+| TruLens groundedness | 0.384 | 0.635 | LLM calls |
+| lexical heuristic | 0.383 | 0.639 | none |
+| RAGAS faithfulness | 0.302 | 0.567 | LLM calls |
+
+Sentence-level AUC rises 0.666 → **0.823**. The model is 2 KB of JSON,
+adds no dependency, and scores in microseconds.
+
+It improves every domain, but unevenly — and that is the finding:
+technical documentation gains most, while multi-hop and financial QA stay
+far behind RAGAS. **The failure was in the features, not the classifier.**
+Where a faithful answer synthesises rather than reuses wording there is no
+lexical evidence to weight, and only a model that reads meaning closes
+that gap. Serving is deliberately unchanged — swapping it would
+invalidate the committed baselines. Full method, caveats and split
+discipline: [`docs/stage12_learned_grounding.md`](docs/stage12_learned_grounding.md).
+
 ## Retrieval core (Stage 3)
 
 Hybrid retrieval: BM25 (numpy posting lists, `app/core/bm25.py`) and dense
@@ -252,6 +279,7 @@ measured, and what was deliberately not done. Read in this order.
 | 9.10 | [stage9_10_app_shell](docs/stage9_10_app_shell.md) | app shell, sign-in surface, client-side threads |
 | 10 | [stage10_grounding_validation](docs/stage10_grounding_validation.md) | **the grounding metric measured against RAGBench** |
 | 11 | [stage11_monitoring](docs/stage11_monitoring.md) | monitoring and alerting |
+| 12 | [stage12_learned_grounding](docs/stage12_learned_grounding.md) | **training a classifier to replace the heuristic** |
 
 If you read only two: [stage5_admission](docs/stage5_admission.md) for
 how the system behaves under load it cannot serve, and
